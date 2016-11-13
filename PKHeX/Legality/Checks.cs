@@ -340,6 +340,8 @@ namespace PKHeX
                     return new CheckResult(Severity.Invalid, "Invalid Link Gift: can't obtain in XY.", CheckIdentifier.Encounter);
                 if (pkm.AO && !enc.ORAS)
                     return new CheckResult(Severity.Invalid, "Invalid Link Gift: can't obtain in ORAS.", CheckIdentifier.Encounter);
+                if (pkm.SM && !enc.SM)
+                    return new CheckResult(Severity.Invalid, "Invalid Link Gift: can't obtain in SM.", CheckIdentifier.Encounter);
                 
                 if (enc.Shiny != null && (bool)enc.Shiny ^ pkm.IsShiny)
                     return new CheckResult(Severity.Invalid, "Shiny Link gift mismatch.", CheckIdentifier.Encounter);
@@ -348,12 +350,12 @@ namespace PKHeX
                     ? new CheckResult(Severity.Invalid, "Invalid Link Gift: should not be Fateful Encounter.", CheckIdentifier.Encounter) 
                     : new CheckResult(Severity.Valid, "Valid Link gift.", CheckIdentifier.Encounter);
             }
+
             if (pkm.WasEvent || pkm.WasEventEgg)
             {
                 MysteryGift MatchedGift = EncounterMatch as MysteryGift;
-                return MatchedGift == null 
-                    ? new CheckResult(Severity.Invalid, "Unable to match to a Mystery Gift in the database.", CheckIdentifier.Encounter) 
-                    : new CheckResult(Severity.Valid, $"Matches #{MatchedGift.CardID.ToString("0000")} ({MatchedGift.CardTitle})", CheckIdentifier.Encounter);
+                if (MatchedGift != null)
+                    return new CheckResult(Severity.Valid, $"Matches #{MatchedGift.CardID.ToString("0000")} ({MatchedGift.CardTitle})", CheckIdentifier.Encounter);
             }
 
             EncounterMatch = Legal.getValidStaticEncounter(pkm);
@@ -463,9 +465,10 @@ namespace PKHeX
             }
             EncounterMatch = Legal.getValidIngameTrade(pkm);
             if (EncounterMatch != null)
-            {
                 return new CheckResult(Severity.Valid, "Valid ingame trade.", CheckIdentifier.Encounter);
-            }
+
+            if (pkm.WasEvent || pkm.WasEventEgg)
+                return new CheckResult(Severity.Invalid, "Unable to match to a Mystery Gift in the database.", CheckIdentifier.Encounter);
             return new CheckResult(Severity.Invalid, "Not a valid encounter.", CheckIdentifier.Encounter);
         }
         private void verifyLevel()
@@ -578,6 +581,22 @@ namespace PKHeX
                 if (classic ^ ((EncounterLink)EncounterMatch).Classic)
                     (classic ? invalidRibbons : missingRibbons).Add(EventRibName[4]);
             }
+            else if (EncounterType == typeof(EncounterStatic))
+            {
+                // No Event Ribbons except Wishing (which is only for Magearna)
+                for (int i = 0; i < EventRib.Length; i++)
+                {
+                    if (i == 10)
+                        continue;
+
+                    if (ReflectUtil.getBooleanState(pkm, EventRib[i]) == true)
+                        invalidRibbons.Add(EventRibName[i]);
+                }
+
+                bool wishing = ReflectUtil.getBooleanState(pkm, EventRib[10]) == true;
+                if (wishing ^ ((EncounterStatic)EncounterMatch).RibbonWishing)
+                    (wishing ? invalidRibbons : missingRibbons).Add(EventRibName[10]);
+            }
             else // No ribbons
             {
                 for (int i = 0; i < EventRib.Length; i++)
@@ -651,6 +670,13 @@ namespace PKHeX
                             AddLine(Severity.Invalid, "Hidden Ability mismatch for ingame trade.", CheckIdentifier.Ability);
                             return;
                         }
+                    if (EncounterType == typeof(EncounterLink))
+                        if (pkm.AbilityNumber != ((EncounterLink)EncounterMatch).Ability)
+                        {
+                            AddLine(Severity.Invalid, "Ability mismatch for Link Gift.", CheckIdentifier.Ability);
+                            return;
+                        }
+
                 }
                 if (pkm.GenNumber == 6)
                 {
@@ -755,6 +781,8 @@ namespace PKHeX
                 { AddLine(Severity.Invalid, "Master Ball on egg origin.", CheckIdentifier.Ball); return; }
                 if (pkm.Ball == 0x10) // Cherish Ball
                 { AddLine(Severity.Invalid, "Cherish Ball on non-event.", CheckIdentifier.Ball); return; }
+                if (pkm.Ball == 0x04) // Poké Ball
+                { AddLine(Severity.Valid, "Standard Poké Ball.", CheckIdentifier.Ball); return; }
 
                 switch (pkm.GenNumber)
                 {
@@ -1351,13 +1379,17 @@ namespace PKHeX
 
             if (Encounter.Valid && EncounterIsMysteryGift ^ pkm.FatefulEncounter)
             {
-                if (pkm.AO && EncounterType == typeof(EncounterStatic) && pkm.Species == 386) // Deoxys Matched @ Sky Pillar
-                { AddLine(Severity.Valid, "Sky Pillar Deoxys matched Fateful Encounter.", CheckIdentifier.Fateful); return; }
-                else
-                { AddLine(Severity.Invalid, "Fateful Encounter should " + (pkm.FatefulEncounter ? "not " : "") + "be checked.", CheckIdentifier.Fateful); return; }
+                if (EncounterType == typeof (EncounterStatic))
+                {
+                    var enc = EncounterMatch as EncounterStatic;
+                    if (enc.Fateful)
+                        AddLine(Severity.Valid, "Special ingame Fateful Encounter.", CheckIdentifier.Fateful);
+                    return;
+                }
+                AddLine(Severity.Invalid, "Fateful Encounter should " + (pkm.FatefulEncounter ? "not " : "") + "be checked.", CheckIdentifier.Fateful);
+                return;
             }
-            else
-            { AddLine(Severity.Valid, "Fateful Encounter is Valid.", CheckIdentifier.Fateful); return; }
+            AddLine(Severity.Valid, "Fateful Encounter is Valid.", CheckIdentifier.Fateful);
         }
         private CheckResult[] verifyMoves()
         {

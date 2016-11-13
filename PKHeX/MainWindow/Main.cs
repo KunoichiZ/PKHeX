@@ -124,6 +124,8 @@ namespace PKHeX
 
             // Load WC6 folder to legality
             refreshWC6DB();
+            // Load WC7 folder to legality
+            refreshWC7DB();
 
             #endregion
             #region Localize & Populate Fields
@@ -202,10 +204,10 @@ namespace PKHeX
         }
 
         #region Important Variables
-        public static PKM pkm = new PK6(); // Tab Pokemon Data Storage
-        public static SaveFile SAV = new SAV7 { Game = (int)GameVersion.AS, OT = "PKHeX", TID = 12345, SID = 54321, Language = 2, Country = 49, SubRegion = 7, ConsoleRegion = 1 }; // Save File
+        public static SaveFile SAV = new SAV7 { Game = (int)GameVersion.SN, OT = "PKHeX", TID = 12345, SID = 54321, Language = 2, Country = 49, SubRegion = 7, ConsoleRegion = 1 }; // Save File
+        public static PKM pkm = SAV.BlankPKM; // Tab Pokemon Data Storage
+        private LegalityAnalysis Legality = new LegalityAnalysis(pkm);
         public static GameInfo.GameStrings GameStrings;
-        private LegalityAnalysis Legality = new LegalityAnalysis(new PK3());
 
         public static string curlanguage = "en";
         public static string[] gendersymbols = { "♂", "♀", "-" };
@@ -237,8 +239,8 @@ namespace PKHeX
         #region Path Variables
 
         public static string WorkingDirectory => Util.IsClickonceDeployed ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "PKHeX") : Environment.CurrentDirectory;
-        public static string DatabasePath => Path.Combine(WorkingDirectory, "db");
-        public static string WC6DatabasePath => Path.Combine(WorkingDirectory, "wc6");
+        public static string DatabasePath => Path.Combine(WorkingDirectory, "pkmdb");
+        public static string MGDatabasePath => Path.Combine(WorkingDirectory, "mgdb");
         private static string BackupPath => Path.Combine(WorkingDirectory, "bak");
         private static string ThreadPath => @"https://projectpokemon.org/forums/showthread.php?36986";
         private static string VersionPath => @"https://raw.githubusercontent.com/kwsch/PKHeX/master/PKHeX/Resources/text/version.txt";
@@ -752,42 +754,44 @@ namespace PKHeX
             string[] XORpads = Directory.GetFiles(xorpath);
 
             int loop = 0;
-        check:
-            foreach (byte[] data in from file in XORpads let fi = new FileInfo(file) where (fi.Name.ToLower().Contains("xorpad") || fi.Name.ToLower().Contains("key")) && (fi.Length == 0x10009C || fi.Length == 0x100000) select File.ReadAllBytes(file))
+
+            while (xorpath == exepath && loop++ == 0)
             {
-                // Fix xorpad alignment
-                byte[] xorpad = data;
-                if (xorpad.Length == 0x10009C) // Trim off Powersaves' header
-                    xorpad = xorpad.Skip(0x9C).ToArray(); // returns 0x100000
+                foreach (byte[] data in from file in XORpads let fi = new FileInfo(file) where (fi.Name.ToLower().Contains("xorpad") || fi.Name.ToLower().Contains("key")) && (fi.Length == 0x10009C || fi.Length == 0x100000) select File.ReadAllBytes(file))
+                {
+                    // Fix xorpad alignment
+                    byte[] xorpad = data;
+                    if (xorpad.Length == 0x10009C) // Trim off Powersaves' header
+                        xorpad = xorpad.Skip(0x9C).ToArray(); // returns 0x100000
 
-                if (!xorpad.Take(0x10).SequenceEqual(savID)) continue;
+                    if (!xorpad.Take(0x10).SequenceEqual(savID)) continue;
 
-                // Set up Decrypted File
-                byte[] decryptedPS = input.Skip(0x5400).Take(SaveUtil.SIZE_G6ORAS).ToArray();
+                    // Set up Decrypted File
+                    byte[] decryptedPS = input.Skip(0x5400).Take(SaveUtil.SIZE_G6ORAS).ToArray();
 
-                // xor through and decrypt
-                for (int z = 0; z < decryptedPS.Length; z++)
-                    decryptedPS[z] ^= xorpad[0x5400 + z];
+                    // xor through and decrypt
+                    for (int z = 0; z < decryptedPS.Length; z++)
+                        decryptedPS[z] ^= xorpad[0x5400 + z];
 
-                // Weakly check the validity of the decrypted content
-                if (BitConverter.ToUInt32(decryptedPS, SaveUtil.SIZE_G6ORAS - 0x1F0) != SaveUtil.BEEF) // Not OR/AS
-                    if (BitConverter.ToUInt32(decryptedPS, SaveUtil.SIZE_G6XY - 0x1F0) != SaveUtil.BEEF) // Not X/Y
-                        continue;
-                    else
+                    // Weakly check the validity of the decrypted content
+                    if (BitConverter.ToUInt32(decryptedPS, SaveUtil.SIZE_G6ORAS - 0x1F0) == SaveUtil.BEEF)
+                        Array.Resize(ref decryptedPS, SaveUtil.SIZE_G6ORAS); // set to ORAS size
+                    else if (BitConverter.ToUInt32(decryptedPS, SaveUtil.SIZE_G6XY - 0x1F0) == SaveUtil.BEEF)
                         Array.Resize(ref decryptedPS, SaveUtil.SIZE_G6XY); // set to X/Y size
-                else Array.Resize(ref decryptedPS, SaveUtil.SIZE_G6ORAS); // set to ORAS size just in case
+                    else if (BitConverter.ToUInt32(decryptedPS, SaveUtil.SIZE_G7SM - 0x1F0) == SaveUtil.BEEF)
+                        Array.Resize(ref decryptedPS, SaveUtil.SIZE_G7SM); // set to S/M size
+                    else
+                        continue;
 
-                // Save file is now decrypted!
-
-                // Trigger Loading of the decrypted save file.
-                openSAV(new SAV6(decryptedPS), path);
-
-                // Abort the opening of a non-cyber file.
-                return true;
+                    // Save file is now decrypted!
+                    // Trigger Loading of the decrypted save file.
+                    openSAV(SaveUtil.getVariantSAV(decryptedPS), path);
+                    return true;
+                }
+                // End file check loop, check the input path for xorpads too if it isn't the same as the EXE (quite common).
+                xorpath = Path.GetDirectoryName(path); // try again in the next folder up
             }
-            // End file check loop, check the input path for xorpads too if it isn't the same as the EXE (quite common).
-            if (xorpath != exepath || loop++ > 0) return false; // no xorpad compatible
-            xorpath = Path.GetDirectoryName(path); goto check;
+            return false; // no xorpad compatible
         }
         private void openSAV(SaveFile sav, string path)
         {
@@ -1199,7 +1203,7 @@ namespace PKHeX
         }
         private static void refreshWC6DB()
         {
-            List<WC6> wc6db = new List<WC6>();
+            List<MysteryGift> wc6db = new List<MysteryGift>();
             byte[] wc6bin = Properties.Resources.wc6;
             for (int i = 0; i < wc6bin.Length; i += WC6.Size)
             {
@@ -1215,13 +1219,39 @@ namespace PKHeX
                 wc6db.Add(new WC6(data));
             }
 
-            if (Directory.Exists(WC6DatabasePath))
-                wc6db.AddRange(from file in Directory.GetFiles(WC6DatabasePath, "*", SearchOption.AllDirectories)
+            if (Directory.Exists(MGDatabasePath))
+                wc6db.AddRange(from file in Directory.GetFiles(MGDatabasePath, "*", SearchOption.AllDirectories)
                     let fi = new FileInfo(file)
                     where new[] {".wc6full", ".wc6"}.Contains(fi.Extension) && new[] {WC6.Size, WC6.SizeFull}.Contains((int)fi.Length)
                     select new WC6(File.ReadAllBytes(file)));
 
-            Legal.WC6DB = wc6db.Distinct().ToArray();
+            Legal.MGDB_G6 = wc6db.Distinct().ToArray();
+        }
+        private static void refreshWC7DB()
+        {
+            List<MysteryGift> wc7db = new List<MysteryGift>();
+            byte[] wc7bin = Properties.Resources.wc7;
+            for (int i = 0; i < wc7bin.Length; i += WC7.Size)
+            {
+                byte[] data = new byte[WC7.Size];
+                Array.Copy(wc7bin, i, data, 0, WC7.Size);
+                wc7db.Add(new WC7(data));
+            }
+            byte[] wc7full = Properties.Resources.wc7full;
+            for (int i = 0; i < wc7full.Length; i += WC7.SizeFull)
+            {
+                byte[] data = new byte[WC7.SizeFull];
+                Array.Copy(wc7full, i, data, 0, WC7.SizeFull);
+                wc7db.Add(new WC7(data));
+            }
+
+            if (Directory.Exists(MGDatabasePath))
+                wc7db.AddRange(from file in Directory.GetFiles(MGDatabasePath, "*", SearchOption.AllDirectories)
+                               let fi = new FileInfo(file)
+                               where new[] { ".wc7full", ".wc7" }.Contains(fi.Extension) && new[] { WC7.Size, WC7.SizeFull }.Contains((int)fi.Length)
+                               select new WC7(File.ReadAllBytes(file)));
+
+            Legal.MGDB_G7 = wc7db.Distinct().ToArray();
         }
 
         // Language Translation
@@ -1393,6 +1423,7 @@ namespace PKHeX
 
             // Set the Preview Box
             dragout.Image = pk.Sprite;
+            setMarkings();
             updateLegality();
         }
 
@@ -2073,10 +2104,23 @@ namespace PKHeX
         }
         private void updatePP(object sender, EventArgs e)
         {
-            TB_PP1.Text = pkm.getMovePP(Util.getIndex(CB_Move1), CB_PPu1.SelectedIndex).ToString();
-            TB_PP2.Text = pkm.getMovePP(Util.getIndex(CB_Move2), CB_PPu2.SelectedIndex).ToString();
-            TB_PP3.Text = pkm.getMovePP(Util.getIndex(CB_Move3), CB_PPu3.SelectedIndex).ToString();
-            TB_PP4.Text = pkm.getMovePP(Util.getIndex(CB_Move4), CB_PPu4.SelectedIndex).ToString();
+            ComboBox[] cbs = {CB_Move1, CB_Move2, CB_Move3, CB_Move4};
+            ComboBox[] pps = {CB_PPu1, CB_PPu2, CB_PPu3, CB_PPu4};
+            MaskedTextBox[] tbs = {TB_PP1, TB_PP2, TB_PP3, TB_PP4};
+            int index = Array.IndexOf(cbs, sender);
+            if (index < 0)
+                index = Array.IndexOf(pps, sender);
+            if (index < 0)
+                return;
+
+            int move = Util.getIndex(cbs[index]);
+            int pp = pps[index].SelectedIndex;
+            if (move == 0 && pp != 0)
+            {
+                pps[index].SelectedIndex = 0;
+                return; // recursively triggers
+            }
+            tbs[index].Text = pkm.getMovePP(move, pp).ToString();
         }
         private void updatePKRSstrain(object sender, EventArgs e)
         {
@@ -2237,10 +2281,10 @@ namespace PKHeX
                     CB_EncounterType.SelectedValue = 0;
             }
 
-            setMarkings(); // Set/Remove KB marking
             if (!fieldsLoaded)
                 return;
             pkm.Version = (int)Version;
+            setMarkings(); // Set/Remove KB marking
             updateLegality();
         }
         private void updateExtraByteValue(object sender, EventArgs e)
@@ -2286,6 +2330,22 @@ namespace PKHeX
             { clickShowdownImportPKM(sender, e); return; }
             if (fieldsInitialized && ModifierKeys == Keys.Alt && sender != null) // Export Showdown
             { clickShowdownExportPKM(sender, e); return; }
+
+            if (sender == CB_Language || sender == CHK_Nicknamed)
+            {
+                int lang = Util.getIndex(CB_Language);
+                switch (lang)
+                {
+                    case 9:
+                    case 10:
+                        TB_Nickname.Visible = CHK_Nicknamed.Checked;
+                        break;
+                    default:
+                        TB_Nickname.Visible = true;
+                        break;
+                }
+            }
+
             if (!fieldsInitialized || CHK_Nicknamed.Checked)
                 return;
 

@@ -923,7 +923,7 @@ namespace PKHeX
             }
             if (0x10 < pkm.Ball && pkm.Ball < 0x18) // Apricorn Ball
             {
-                if (Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e)))
+                if ((pkm.Species > 731 && pkm.Species <= 785) || Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e)))
                 {
                     AddLine(Severity.Valid, "Apricorn Ball possible for species.", CheckIdentifier.Ball);
                     return;
@@ -1011,7 +1011,7 @@ namespace PKHeX
 
             if (pkm.Ball == 26)
             {
-                if (Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e)))
+                if ((pkm.Species > 731 && pkm.Species <= 785) || Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e)))
                 {
                     AddLine(Severity.Valid, "Beast Ball possible for species.", CheckIdentifier.Ball);
                     return;
@@ -1287,13 +1287,28 @@ namespace PKHeX
 
             if (pkm.AltForm > pkm.PersonalInfo.FormeCount)
             {
-                AddLine(Severity.Invalid, $"Form Count is out of range. Expected <= {pkm.PersonalInfo.FormeCount}, got {pkm.AltForm}", CheckIdentifier.Form);
-                return;
+                bool valid = false;
+                int species = pkm.Species;
+                if (species == 201) // Unown
+                {
+                    if (pkm.GenNumber == 2 && pkm.AltForm < 26) // A-Z
+                        valid = true;
+                    else if (pkm.GenNumber >= 3 && pkm.AltForm >= 28) // A-Z?!
+                        valid = true;
+                }
+                if (species == 414 && pkm.AltForm < 3) // Wormadam base form kept
+                        valid = true;
+
+                if ((species == 664 || species == 665) && pkm.AltForm < 18) // Vivillon Pre-evolutions
+                    valid = true;
+
+                if (!valid) // ignore list
+                { AddLine(Severity.Invalid, $"Form Count is out of range. Expected <= {pkm.PersonalInfo.FormeCount}, got {pkm.AltForm}", CheckIdentifier.Form); return; }
             }
 
             switch (pkm.Species)
             {
-                case 25:
+                case 25: // Pikachu
                     if (pkm.Format == 6 && pkm.AltForm != 0 ^ EncounterType == typeof(EncounterStatic))
                     {
                         if (EncounterType == typeof(EncounterStatic))
@@ -1305,7 +1320,7 @@ namespace PKHeX
                     }
                     if (pkm.Format == 7 && pkm.AltForm != 0 ^ EncounterIsMysteryGift)
                     {
-                        var gift = EncounterMatch as WC6;
+                        var gift = EncounterMatch as WC7;
                         if (gift != null && gift.Form != pkm.AltForm)
                         {
                             AddLine(Severity.Invalid, "Event Pikachu cannot have the default form.", CheckIdentifier.Form);
@@ -1313,22 +1328,22 @@ namespace PKHeX
                         }
                     }
                     break;
-                case 658:
+                case 658: // Greninja
                     if (pkm.AltForm > 1) // Ash Battle Bond active
                     {
                         AddLine(Severity.Invalid, "Form cannot exist outside of a battle.", CheckIdentifier.Form);
                         return;
                     }
                     break;
-                case 664:
-                case 665:
+                case 664: // Scatterbug
+                case 665: // Spewpa
                     if (pkm.AltForm > 17) // Fancy & Pokéball
                     {
                         AddLine(Severity.Invalid, "Event Vivillon pattern on pre-evolution.", CheckIdentifier.Form);
                         return;
                     }
                     break;
-                case 666:
+                case 666: // Vivillon
                     if (pkm.AltForm > 17) // Fancy & Pokéball
                     {
                         if (!EncounterIsMysteryGift)
@@ -1339,7 +1354,7 @@ namespace PKHeX
                         return;
                     }
                     break;
-                case 670:
+                case 670: // Floette
                     if (pkm.AltForm == 5) // Eternal Flower -- Never Released
                     {
                         if (!EncounterIsMysteryGift)
@@ -1350,21 +1365,24 @@ namespace PKHeX
                         return;
                     }
                     break;
-                case 718:
+                case 718: // Zygarde
                     if (pkm.AltForm >= 4)
                     {
                         AddLine(Severity.Invalid, "Form cannot exist outside of a battle.", CheckIdentifier.Form);
                         return;
                     }
                     break;
-                case 774:
-                    if (pkm.AltForm >= 7)
+                case 774: // Minior
+                    if (pkm.AltForm < 7)
                     {
                         AddLine(Severity.Invalid, "Form cannot exist outside of a battle.", CheckIdentifier.Form);
                         return;
                     }
                     break;
             }
+
+            if (pkm.Format >= 7 && pkm.GenNumber < 7 && pkm.AltForm != 0 && Legal.AlolanOriginForms.Contains(pkm.Species))
+            { AddLine(Severity.Invalid, "Form cannot be obtained for pre-Alola generation games.", CheckIdentifier.Form); return; }
             if (pkm.AltForm > 0 && new[] {Legal.BattleForms, Legal.BattleMegas, Legal.BattlePrimals}.Any(arr => arr.Contains(pkm.Species)))
             { AddLine(Severity.Invalid, "Form cannot exist outside of a battle.", CheckIdentifier.Form); return; }
 

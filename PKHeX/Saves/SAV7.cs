@@ -420,6 +420,25 @@ namespace PKHeX
             }
         }
 
+        // Resort Save
+        public int GetPokebeanCount(int bean_id)
+        {
+            if (bean_id < 0 || bean_id > 14)
+                throw new ArgumentException("Invalid bean id!");
+            return Data[Resort + 0x564C + bean_id];
+        }
+
+        public void SetPokebeanCount(int bean_id, int count)
+        {
+            if (bean_id < 0 || bean_id > 14)
+                throw new ArgumentException("Invalid bean id!");
+            if (count < 0)
+                count = 0;
+            if (count > 255)
+                count = 255;
+            Data[Resort + 0x564C + bean_id] = (byte) count;
+        }
+
         // Storage
         public override int CurrentBox { get { return Data[LastViewedBox]; } set { Data[LastViewedBox] = (byte)value; } }
         public override int getPartyOffset(int slot)
@@ -654,7 +673,7 @@ namespace PKHeX
                 return -1;
             if (Daycare < 0)
                 return -1;
-            return Daycare + 6 + slot * (SIZE_STORED + 6);
+            return Daycare + 1 + slot * (SIZE_STORED + 1);
         }
         public override bool? getDaycareOccupied(int loc, int slot)
         {
@@ -663,7 +682,7 @@ namespace PKHeX
             if (Daycare < 0)
                 return null;
 
-            return Data[Daycare + (SIZE_STORED + 6) * slot] != 0;
+            return Data[Daycare + (SIZE_STORED + 1) * slot] != 0;
         }
         public override string getDaycareRNGSeed(int loc)
         {
@@ -682,7 +701,7 @@ namespace PKHeX
             if (Daycare < 0)
                 return null;
 
-            return Data[Daycare + 0x1E0] == 1;
+            return Data[Daycare + 0x1D8] == 1;
         }
         public override void setDaycareOccupied(int loc, int slot, bool occupied)
         {
@@ -690,9 +709,8 @@ namespace PKHeX
                 return;
             if (Daycare < 0)
                 return;
-
-            // Are they using species instead of a flag?
-            Data[Daycare + (SIZE_STORED + 6) * slot] = (byte)(occupied ? 1 : 0);
+            
+            Data[Daycare + (SIZE_STORED + 1) * slot] = (byte)(occupied ? 1 : 0);
         }
         public override void setDaycareRNGSeed(int loc, string seed)
         {
@@ -718,7 +736,7 @@ namespace PKHeX
             if (Daycare < 0)
                 return;
 
-            Data[Daycare + 0x1E0] = (byte)(hasEgg ? 1 : 0);
+            Data[Daycare + 0x1D8] = (byte)(hasEgg ? 1 : 0);
         }
 
         // Mystery Gift

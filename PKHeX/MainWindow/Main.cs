@@ -10,6 +10,7 @@ using System.Media;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using PKHeX.Saves.Substructures;
 
 namespace PKHeX
 {
@@ -659,12 +660,17 @@ namespace PKHeX
                     return;
                 int savshift = sdr == DialogResult.Yes ? 0 : 0x7F000;
                 byte[] psdata = input.Skip(0x5400 + savshift).Take(SaveUtil.SIZE_G6ORAS).ToArray();
-                if (BitConverter.ToUInt32(psdata, psdata.Length - 0x1F0) != SaveUtil.BEEF)
-                    Array.Resize(ref psdata, SaveUtil.SIZE_G6XY);
-                if (BitConverter.ToUInt32(psdata, psdata.Length - 0x1F0) != SaveUtil.BEEF)
+
+                if (BitConverter.ToUInt32(psdata, SaveUtil.SIZE_G6ORAS - 0x1F0) == SaveUtil.BEEF)
+                    Array.Resize(ref psdata, SaveUtil.SIZE_G6ORAS); // set to ORAS size
+                else if (BitConverter.ToUInt32(psdata, SaveUtil.SIZE_G6XY - 0x1F0) == SaveUtil.BEEF)
+                    Array.Resize(ref psdata, SaveUtil.SIZE_G6XY); // set to X/Y size
+                else if (BitConverter.ToUInt32(psdata, SaveUtil.SIZE_G7SM - 0x1F0) == SaveUtil.BEEF)
+                    Array.Resize(ref psdata, SaveUtil.SIZE_G7SM); // set to S/M size
+                else
                 { Util.Error("The data file is not a valid save file", path); return; }
 
-                openSAV(new SAV6(psdata), path);
+                openSAV(SaveUtil.getVariantSAV(psdata), path);
             }
             #endregion
             #region SAV/PKM
@@ -1082,6 +1088,9 @@ namespace PKHeX
             // Recenter PKM SubEditors
             FLP_PKMEditors.Location = new Point((Tab_OTMisc.Width - FLP_PKMEditors.Width) / 2, FLP_PKMEditors.Location.Y);
 
+            bool init = fieldsInitialized;
+            fieldsInitialized = fieldsLoaded = false;
+
             switch (SAV.Generation)
             {
                 case 1:
@@ -1150,8 +1159,6 @@ namespace PKHeX
                     TB_Secure2.Text = SAV.Secure2?.ToString("X16");
                     break;
             }
-            bool init = fieldsInitialized;
-            fieldsInitialized = fieldsLoaded = false;
             pkm = pkm.GetType() != SAV.PKMType ? SAV.BlankPKM : pk;
             if (pkm.Format < 3)
                 pkm = SAV.BlankPKM;
@@ -1570,7 +1577,18 @@ namespace PKHeX
                 PKM pkx = preparePKM();
                 byte[] ekx = pkx.EncryptedBoxData;
                 const string server = "http://loadcode.projectpokemon.org/b1s1.html#"; // Rehosted with permission from LC/MS -- massive thanks!
-                Image qr = QR.getQRImage(ekx, pkx.Format == 6 ? server : "null/#"); // pls no use QR on non gen6 -- bad user!
+                Image qr;
+                switch (pkx.Format)
+                {
+                    case 6:
+                        qr = QR.getQRImage(ekx, server);
+                        break;
+                    case 7:
+                        qr = QR7.GenerateQRCode7((PK7) pkx);
+                        break;
+                    default:
+                        return;
+                }
 
                 if (qr == null) return;
 
@@ -2638,14 +2656,30 @@ namespace PKHeX
 
             if (new[] { CB_Move1, CB_Move2, CB_Move3, CB_Move4 }.Contains(sender)) // Move
                 updatePP(sender, e);
-            
-            if (pkm.Format < 6)
-                return;
 
             // Legality
-            pkm.Moves = new[] { Util.getIndex(CB_Move1), Util.getIndex(CB_Move2), Util.getIndex(CB_Move3), Util.getIndex(CB_Move4) };
-            pkm.RelearnMoves = new[] { Util.getIndex(CB_RelearnMove1), Util.getIndex(CB_RelearnMove2), Util.getIndex(CB_RelearnMove3), Util.getIndex(CB_RelearnMove4) };
-            updateLegality();
+            pkm.Moves = new[] {CB_Move1, CB_Move2, CB_Move3, CB_Move4}.Select(Util.getIndex).ToArray();
+            pkm.RelearnMoves = new[] {CB_RelearnMove1, CB_RelearnMove2, CB_RelearnMove3, CB_RelearnMove4}.Select(Util.getIndex).ToArray();
+            updateLegality(skipMoveRepop:true);
+        }
+        private void validateMovePaint(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+
+            var i = (ComboItem)(sender as ComboBox).Items[e.Index];
+            var moves = Legality.AllSuggestedMovesAndRelearn;
+            bool vm = moves != null && moves.Contains(i.Value) && !HaX;
+
+            bool current = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            Brush tBrush = current ? SystemBrushes.HighlightText : new SolidBrush(e.ForeColor);
+            Brush brush = current ? SystemBrushes.Highlight : vm ? Brushes.PaleGreen : new SolidBrush(e.BackColor);
+
+            e.Graphics.FillRectangle(brush, e.Bounds);
+            e.Graphics.DrawString(i.Text, e.Font, tBrush, e.Bounds, StringFormat.GenericDefault);
+            if (current) return;
+            tBrush.Dispose();
+            if (!vm)
+                brush.Dispose();
         }
         private void validateLocation(object sender, EventArgs e)
         {
@@ -2673,7 +2707,7 @@ namespace PKHeX
                 updateLegality(la);
             Util.Alert(verbose ? la.VerboseReport : la.Report);
         }
-        private void updateLegality(LegalityAnalysis la = null)
+        private void updateLegality(LegalityAnalysis la = null, bool skipMoveRepop = false)
         {
             if (!fieldsLoaded)
                 return;
@@ -2693,6 +2727,22 @@ namespace PKHeX
             
             for (int i = 0; i < 4; i++)
                 relearnPB[i].Visible = !Legality.vRelearn[i].Valid && !HaX;
+
+            if (skipMoveRepop)
+                return;
+            // Resort moves
+            bool tmp = fieldsLoaded;
+            fieldsLoaded = false;
+            var cb = new[] {CB_Move1, CB_Move2, CB_Move3, CB_Move4 };
+            var moves = Legality.AllSuggestedMovesAndRelearn;
+            var moveList = GameInfo.MoveDataSource.OrderByDescending(m => moves.Contains(m.Value)).ToList();
+            foreach (ComboBox c in cb)
+            {
+                var index = c.SelectedValue;
+                c.DataSource = new BindingSource(moveList, null);
+                c.SelectedValue = index;
+            }
+            fieldsLoaded |= tmp;
         }
         private void updateStats()
         {
@@ -3313,6 +3363,9 @@ namespace PKHeX
         }
         private void updateU64(object sender, EventArgs e)
         {
+            if (!fieldsLoaded)
+                return;
+
             TextBox tb = sender as TextBox;
             if (tb?.Text.Length == 0)
             {
@@ -3898,7 +3951,6 @@ namespace PKHeX
             
             clickSlot(sender, e);
         }
-
         private void pbBoxSlot_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Left)

@@ -1557,10 +1557,10 @@ namespace PKHeX
 
                 if (ekx == null) return;
                 
-                if (ekx.Length != SAV.SIZE_STORED) { Util.Alert($"Decoded data not {SAV.SIZE_STORED} bytes.", $"QR Data Size: {SAV.SIZE_STORED}"); }
+                PKM pk = PKMConverter.getPKMfromBytes(ekx);
+                if (pk == null) { Util.Alert("Decoded data not a valid PKM.", $"QR Data Size: {ekx.Length}"); }
                 else
                 {
-                    PKM pk = PKMConverter.getPKMfromBytes(ekx);
                     if (!pk.Valid || pk.Species <= 0)
                     { Util.Alert("Invalid data detected."); return; }
 
@@ -1576,25 +1576,24 @@ namespace PKHeX
                 if (!verifiedPKM()) return;
                 PKM pkx = preparePKM();
                 byte[] ekx = pkx.EncryptedBoxData;
+
                 const string server = "http://loadcode.projectpokemon.org/b1s1.html#"; // Rehosted with permission from LC/MS -- massive thanks!
                 Image qr;
                 switch (pkx.Format)
                 {
-                    case 6:
-                        qr = QR.getQRImage(ekx, server);
-                        break;
                     case 7:
                         qr = QR7.GenerateQRCode7((PK7) pkx);
                         break;
                     default:
-                        return;
+                        qr = QR.getQRImage(ekx, pkx.Format == 6 ? server : "null/#");
+                        break;
                 }
 
                 if (qr == null) return;
 
                 string[] r = pkx.QRText;
                 const string refURL = "PKHeX @ ProjectPokemon.org";
-                new QR(qr, dragout.Image, r[0], r[1], r[2], $"{refURL} ({pkx.GetType().Name})").ShowDialog();
+                new QR(qr, dragout.Image, r[0], r[1], r[2], $"{refURL} ({pkx.GetType().Name})", pkx).ShowDialog();
             }
         }
         private void clickFriendship(object sender, EventArgs e)
@@ -1810,6 +1809,10 @@ namespace PKHeX
                 if (m.Length > 4)
                     m = m.Skip(m.Length - 4).ToArray();
                 Array.Resize(ref m, 4);
+
+                if (pkm.Moves.SequenceEqual(m))
+                    return;
+
                 string r = string.Join(Environment.NewLine, m.Select(v => v >= GameStrings.movelist.Length ? "ERROR" : GameStrings.movelist[v]));
                 if (DialogResult.Yes != Util.Prompt(MessageBoxButtons.YesNo, "Apply suggested current moves?", r))
                     return;
@@ -1822,6 +1825,10 @@ namespace PKHeX
             else if (sender == GB_RelearnMoves)
             {
                 int[] m = Legality.getSuggestedRelearn();
+
+                if (pkm.RelearnMoves.SequenceEqual(m))
+                    return;
+
                 string r = string.Join(Environment.NewLine, m.Select(v => v >= GameStrings.movelist.Length ? "ERROR" : GameStrings.movelist[v]));
                 if (DialogResult.Yes != Util.Prompt(MessageBoxButtons.YesNo, "Apply suggested relearn moves?", r))
                     return;
@@ -2695,7 +2702,7 @@ namespace PKHeX
         {
             ((ComboBox)sender).DroppedDown = false;
         }
-        private void showLegality(PKM pk, bool tabs, bool verbose)
+        private void showLegality(PKM pk, bool tabs, bool verbose, bool skipMoveRepop = false)
         {
             LegalityAnalysis la = new LegalityAnalysis(pk);
             if (!la.Parsed)
@@ -2704,7 +2711,7 @@ namespace PKHeX
                 return;
             }
             if (tabs)
-                updateLegality(la);
+                updateLegality(la, skipMoveRepop);
             Util.Alert(verbose ? la.VerboseReport : la.Report);
         }
         private void updateLegality(LegalityAnalysis la = null, bool skipMoveRepop = false)

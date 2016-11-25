@@ -231,7 +231,42 @@ namespace PKHeX
             new EncounterStatic { Species = 785, Form = 0, Level = 60, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 030, }, // Tapu Koko
             new EncounterStatic { Species = 542, Form = 0, Level = 57, Relearn = new[]{382, 437, 014, 494}, Location = -1, }, // Leavanny
             
+            new EncounterStatic { Species = 718, Form = 0, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 1, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 2, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 3, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            
             new EncounterStatic { Species = 718, Form = 0, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 1, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 2, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Species = 718, Form = 3, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+
+            new EncounterStatic { Species = 021, Location = 30016, Level = -1, }, // Spearow
+            new EncounterStatic { Species = 041, Location = 30016, Level = -1, }, // Zubat
+            new EncounterStatic { Species = 060, Location = 30016, Level = -1, }, // Poliwag
+            new EncounterStatic { Species = 064, Location = 30016, Level = -1, }, // Kadabra
+            new EncounterStatic { Species = 081, Location = 30016, Level = -1, }, // Magnemite
+            new EncounterStatic { Species = 090, Location = 30016, Level = -1, }, // Shellder
+            new EncounterStatic { Species = 092, Location = 30016, Level = -1, }, // Gastly
+            new EncounterStatic { Species = 120, Location = 30016, Level = -1, }, // Staryu
+            new EncounterStatic { Species = 123, Location = 30016, Level = -1, }, // Scyther
+            new EncounterStatic { Species = 127, Location = 30016, Level = -1, }, // Pinsir
+            new EncounterStatic { Species = 131, Location = 30016, Level = -1, }, // Lapras
+            new EncounterStatic { Species = 198, Location = 30016, Level = -1, }, // Murkrow
+            new EncounterStatic { Species = 227, Location = 30016, Level = -1, }, // Skarmory
+            new EncounterStatic { Species = 278, Location = 30016, Level = -1, }, // Wingull
+            new EncounterStatic { Species = 375, Location = 30016, Level = -1, }, // Metang
+            new EncounterStatic { Species = 426, Location = 30016, Level = -1, }, // Drifblim
+            new EncounterStatic { Species = 429, Location = 30016, Level = -1, }, // Mismagius
+            new EncounterStatic { Species = 587, Location = 30016, Level = -1, }, // Emolga
+            new EncounterStatic { Species = 627, Location = 30016, Level = -1, }, // Rufflet
+            new EncounterStatic { Species = 629, Location = 30016, Level = -1, }, // Vullaby
+            new EncounterStatic { Species = 661, Location = 30016, Level = -1, }, // Fletchling
+            new EncounterStatic { Species = 703, Location = 30016, Level = -1, }, // Carbink
+            new EncounterStatic { Species = 707, Location = 30016, Level = -1, }, // Klefki
+            new EncounterStatic { Species = 709, Location = 30016, Level = -1, }, // Trevenant
+            new EncounterStatic { Species = 731, Location = 30016, Level = -1, }, // Pikipek
+            new EncounterStatic { Species = 771, Location = 30016, Level = -1, }, // Pyukumuku
         };
         private static readonly EncounterTrade[] TradeGift_SM = // @ a\1\5\5
         {
@@ -352,12 +387,23 @@ namespace PKHeX
             497, 500, 503, //3
         };
 
+        internal static readonly int[] ZygardeMoves =
+        {
+            245, // Extreme Speed
+            349, // Dragon Dance
+            614, // Thousand Arrows
+            615, // Thousand Waves
+            687, // Core Enforcer
+        };
+
         internal static readonly int[] ValidMet_SM =
         {
             006, 008, 010, 012, 014, 016, 018, 020, 022, 024, 026, 028, 030, 032, 034, 036, 038, 040, 042, 044, 046, 048,
             050, 052, 054, 056, 058, 060, 062, 064, 066, 068, 070, 072, 074, 076, 078, 082, 084, 086, 088, 090, 092, 094,
             100, 102, 104, 106, 108, 110, 112, 114, 116, 118, 120, 122, 124, 126, 128, 130, 132, 134, 136, 138, 140, 142, 144, 146, 148,
-            150, 152, 154, 156, 158, 160, 162, 164, 166, 168, 170, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192
+            150, 152, 154, 156, 158, 160, 162, 164, 166, 168, 170, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192,
+
+            30016 // Poké Pelago
         };
 
         private static readonly int[] TMHM_SM =
@@ -375,6 +421,8 @@ namespace PKHeX
 
             // No HMs
         };
+
+        internal static readonly int[] TypeTutor7 = {520, 519, 518, 338, 307, 308, 434, 620};
 
         internal static readonly int[] MovePP_SM =
         {

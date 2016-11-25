@@ -81,9 +81,13 @@ namespace PKHeX
             if (ident == null)
                 return null;
 
-            return EncounterArea.getArray(Data.unpackMini(tables, ident));
+            return getEncounterTables(tables, ident);
         }
-        private static EncounterArea[] addXYAltTiles(EncounterArea[] GameSlots, EncounterArea[] SpecialSlots)
+        private static EncounterArea[] getEncounterTables(byte[] mini, string ident)
+        {
+            return EncounterArea.getArray(Data.unpackMini(mini, ident));
+        }
+        private static EncounterArea[] addExtraTableSlots(EncounterArea[] GameSlots, EncounterArea[] SpecialSlots)
         {
             foreach (EncounterArea g in GameSlots)
             {
@@ -116,6 +120,11 @@ namespace PKHeX
                     area.Slots[i].AllowDexNav = area.Slots[i].Type != SlotType.Rock_Smash;
             }
         }
+        private static void MarkG7SMSlots(ref EncounterArea[] Areas)
+        {
+            foreach (EncounterSlot s in Areas.SelectMany(area => area.Slots))
+                s.Type = SlotType.SOS;
+        }
 
         static Legal() // Setup
         {
@@ -130,8 +139,8 @@ namespace PKHeX
                 var YSlots = getEncounterTables(GameVersion.Y);
                 MarkG6XYSlots(ref XSlots);
                 MarkG6XYSlots(ref YSlots);
-                SlotsX = addXYAltTiles(XSlots, SlotsXYAlt);
-                SlotsY = addXYAltTiles(YSlots, SlotsXYAlt);
+                SlotsX = addExtraTableSlots(XSlots, SlotsXYAlt);
+                SlotsY = addExtraTableSlots(YSlots, SlotsXYAlt);
 
                 SlotsA = getEncounterTables(GameVersion.AS);
                 SlotsO = getEncounterTables(GameVersion.OR);
@@ -144,8 +153,14 @@ namespace PKHeX
             {
                 StaticSN = getStaticEncounters(GameVersion.SN);
                 StaticMN = getStaticEncounters(GameVersion.MN);
-                SlotsSN = getEncounterTables(GameVersion.SN);
-                SlotsMN = getEncounterTables(GameVersion.MN);
+                var REG_SN = getEncounterTables(GameVersion.SN);
+                var REG_MN = getEncounterTables(GameVersion.MN);
+                var SOS_SN = getEncounterTables(Properties.Resources.encounter_sn_sos, "sm");
+                var SOS_MN = getEncounterTables(Properties.Resources.encounter_mn_sos, "sm");
+                MarkG7SMSlots(ref SOS_SN);
+                MarkG7SMSlots(ref SOS_MN);
+                SlotsSN = addExtraTableSlots(REG_SN, SOS_SN);
+                SlotsMN = addExtraTableSlots(REG_MN, SOS_MN);
 
                 Evolves7 = new EvolutionTree(Data.unpackMini(Properties.Resources.evos_sm, "sm"), GameVersion.SM, PersonalTable.SM, 802);
             }
@@ -798,8 +813,11 @@ namespace PKHeX
             if (species == 479) // Rotom
                 r.Add(RotomMoves[pkm.AltForm]);
 
-            if (species == 25 && pkm.Format == 6) // Pikachu
+            if (species == 25 && pkm.Format == 6 && pkm.GenNumber == 6) // Pikachu
                 r.Add(PikachuMoves[pkm.AltForm]);
+
+            if (species == 718 && pkm.GenNumber == 7) // Zygarde
+                r.AddRange(ZygardeMoves);
 
             if (Relearn) r.AddRange(pkm.RelearnMoves);
             return r.Distinct().ToArray();
@@ -856,6 +874,7 @@ namespace PKHeX
                         {
                             int index = PersonalTable.SM.getFormeIndex(species, form);
                             PersonalInfo pi = PersonalTable.SM.getFormeEntry(species, form);
+                            lvl = 100; // Move reminder can teach any level in movepool now!
 
                             if (LVL) r.AddRange(LevelUpSM[index].getMoves(lvl));
                             if (moveTutor) r.AddRange(getTutorMoves(pkm, species, form, specialTutors));
@@ -892,8 +911,13 @@ namespace PKHeX
         private static IEnumerable<int> getTutorMoves(PKM pkm, int species, int form, bool specialTutors)
         {
             PersonalInfo info = pkm.PersonalInfo;
-            // Type Tutors
-            List<int> moves = TypeTutor.Where((t, i) => info.TypeTutors[i]).ToList();
+            List<int> moves = new List<int>();
+
+            // Type Tutors -- Pledge moves and High BP moves switched places in G7+
+            if (pkm.Format <= 6)
+                moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
+            else if (pkm.Format >= 7)
+                moves.AddRange(TypeTutor7.Where((t, i) => info.TypeTutors[i]));
 
             // Varied Tutors
             //if (pkm.InhabitedGeneration(5) && Tutors)

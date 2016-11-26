@@ -616,6 +616,27 @@ namespace PKHeX
 
             032, // Via Nidoran-F
             313, // Via Illumise
+
+            // Via Evolution
+            524, // Roggenrola
+            532, // Timburr
+            543, // Venipede
+            551, // Sandile
+            557, // Dwebble
+            577, // Solosis
+            582, // Vanillite
+            595, // Joltik
+        };
+        internal static readonly int[] Ban_DreamHidden =
+        {
+            311, // Plusle
+            312, // Minun
+            352, // Kecleon
+            355, // Duskull
+
+            // Via Pre-Evolution
+            356, // Dusclops
+            477, // Dusknoir
         };
         internal static readonly int[] Ban_Gen3Ball =
         {

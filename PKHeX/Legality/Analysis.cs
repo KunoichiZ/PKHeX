@@ -50,6 +50,9 @@ namespace PKHeX
                     default: return;
                 }
 
+                if (pkm.Format == 7) // Temp G7 Bank Checks
+                    verifyG7PreBank();
+
                 Valid = Parsed = Parse.Any();
                 if (Parsed)
                 {
@@ -159,6 +162,8 @@ namespace PKHeX
             verifyForm();
             verifyMisc();
             verifyGender();
+
+            verifyVersionEvolution();
             // SecondaryChecked = true;
         }
         private string getLegalityReport()
@@ -241,6 +246,7 @@ namespace PKHeX
             if (pkm.WasEgg)
                 return new EncounterStatic
                 {
+                    Species = Legal.getBaseSpecies(pkm, lvl:100),
                     Location = getSuggestedEggMetLocation(pkm),
                     Level = 1,
                 };
@@ -249,6 +255,7 @@ namespace PKHeX
             if (capture != null)
                 return new EncounterStatic
                 {
+                    Species = capture.Slots.First().Species,
                     Location = capture.Location,
                     Level = capture.Slots.First().LevelMin,
                 };
@@ -282,7 +289,7 @@ namespace PKHeX
 
                 case GameVersion.SN:
                 case GameVersion.MN:
-                    break;
+                    return 50; // Route 4
             }
             return -1;
         }

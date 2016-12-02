@@ -1846,6 +1846,7 @@ namespace PKHeX
             if (HaX)
                 return;
 
+            pkm = preparePKM();
             var encounter = Legality.getSuggestedMetInfo();
             if (encounter == null || encounter.Location < 0)
             {
@@ -1855,21 +1856,28 @@ namespace PKHeX
 
             int level = encounter.Level;
             int location = encounter.Location;
+            int minlvl = Legal.getLowestLevel(pkm, encounter.Species);
 
-            if (pkm.Met_Level == level && pkm.Met_Location == location)
+            if (pkm.Met_Level == level && pkm.Met_Location == location && pkm.CurrentLevel >= minlvl)
                 return;
 
             var met_list = GameInfo.getLocationList((GameVersion)pkm.Version, SAV.Generation, egg: false);
             var locstr = met_list.FirstOrDefault(loc => loc.Value == location)?.Text;
-            string suggestion = $"Change Met Location to {locstr} @ level {level}?";
+            string suggestion = $"Suggested:\nMet Location: {locstr}\nMet Level: {level}";
+            if (pkm.CurrentLevel < minlvl)
+                suggestion += $"\nCurrent Level {minlvl}";
 
             if (Util.Prompt(MessageBoxButtons.YesNo, suggestion) != DialogResult.Yes)
                 return;
 
             TB_MetLevel.Text = level.ToString();
-            if (pkm.CurrentLevel < level)
-                TB_Level.Text = level.ToString();
             CB_MetLocation.SelectedValue = location;
+
+            if (pkm.CurrentLevel < minlvl)
+                TB_Level.Text = minlvl.ToString();
+
+            pkm = preparePKM();
+            updateLegality();
         }
         // Prompted Updates of PKX Functions // 
         private bool changingFields;
@@ -2046,12 +2054,14 @@ namespace PKHeX
             else
             {
                 bool IV3 = Legal.Legends.Contains(pkm.Species) || Legal.SubLegends.Contains(pkm.Species);
+
                 int[] IVs = new int[6];
-                do
-                {
-                    for (int i = 0; i < 6; i++)
-                        IVs[i] = (int)(Util.rnd32() & SAV.MaxIV);
-                } while (IV3 && IVs.Where(i => i == SAV.MaxIV).Count() < 3);
+                for (int i = 0; i < 6; i++)
+                    IVs[i] = (int)(Util.rnd32() & SAV.MaxIV);
+                if (IV3)
+                    for (int i = 0; i < 3; i++)
+                        IVs[i] = SAV.MaxIV;
+                Util.Shuffle(IVs); // Randomize IV order
 
                 var IVBoxes = new[] {TB_HPIV, TB_ATKIV, TB_DEFIV, TB_SPAIV, TB_SPDIV, TB_SPEIV};
                 for (int i = 0; i < 6; i++)

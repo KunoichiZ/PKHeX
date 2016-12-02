@@ -21,7 +21,7 @@ namespace PKHeX
         private const string CONST_RAND = "$rand";
         private const string CONST_SHINY = "$shiny";
         private int currentFormat = -1;
-        private static readonly string[] pk7 = ReflectUtil.getPropertiesCanWritePublic(typeof(PK6)).OrderBy(i => i).ToArray();
+        private static readonly string[] pk7 = ReflectUtil.getPropertiesCanWritePublic(typeof(PK7)).OrderBy(i => i).ToArray();
         private static readonly string[] pk6 = ReflectUtil.getPropertiesCanWritePublic(typeof(PK6)).OrderBy(i=>i).ToArray();
         private static readonly string[] pk5 = ReflectUtil.getPropertiesCanWritePublic(typeof(PK5)).OrderBy(i=>i).ToArray();
         private static readonly string[] pk4 = ReflectUtil.getPropertiesCanWritePublic(typeof(PK4)).OrderBy(i=>i).ToArray();
@@ -377,11 +377,12 @@ namespace PKHeX
             switch (CB_Format.SelectedIndex)
             {
                 case 0: CB_Property.Items.AddRange(all.ToArray()); break; // All
-                case 1: CB_Property.Items.AddRange(pk6.ToArray()); break;
-                case 2: CB_Property.Items.AddRange(pk5.ToArray()); break;
-                case 3: CB_Property.Items.AddRange(pk4.ToArray()); break;
-                case 4: CB_Property.Items.AddRange(pk3.ToArray()); break;
-                case 5: CB_Property.Items.AddRange(any.ToArray()); break; // Any
+                case 1: CB_Property.Items.AddRange(pk7.ToArray()); break;
+                case 2: CB_Property.Items.AddRange(pk6.ToArray()); break;
+                case 3: CB_Property.Items.AddRange(pk5.ToArray()); break;
+                case 4: CB_Property.Items.AddRange(pk4.ToArray()); break;
+                case 5: CB_Property.Items.AddRange(pk3.ToArray()); break;
+                case 6: CB_Property.Items.AddRange(any.ToArray()); break; // Any
             }
             CB_Property.SelectedIndex = 0;
             currentFormat = CB_Format.SelectedIndex;

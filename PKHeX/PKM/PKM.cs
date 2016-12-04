@@ -284,13 +284,13 @@ namespace PKHeX
         public bool PKRS_Infected => PKRS_Strain > 0;
         public bool PKRS_Cured => PKRS_Days == 0 && PKRS_Strain > 0;
         public virtual bool ChecksumValid => Checksum == CalculateChecksum();
-        public int CurrentLevel => PKX.getLevel(Species, EXP);
-        public bool MarkCircle      { get { return (MarkValue & (1 << 0)) == 1 << 0; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
-        public bool MarkTriangle    { get { return (MarkValue & (1 << 1)) == 1 << 1; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
-        public bool MarkSquare      { get { return (MarkValue & (1 << 2)) == 1 << 2; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
-        public bool MarkHeart       { get { return (MarkValue & (1 << 3)) == 1 << 3; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
-        public bool MarkStar        { get { return (MarkValue & (1 << 4)) == 1 << 4; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
-        public bool MarkDiamond     { get { return (MarkValue & (1 << 5)) == 1 << 5; } set { MarkValue = (byte)(MarkValue & ~(1 << 0) | (value ? 1 << 0 : 0)); } }
+        public int CurrentLevel { get { return PKX.getLevel(Species, EXP); } set { EXP = PKX.getEXP(value, Species); } }
+        public int MarkCircle      { get { return Markings[0]; } set { var marks = Markings; marks[0] = value; Markings = marks; } }
+        public int MarkTriangle    { get { return Markings[1]; } set { var marks = Markings; marks[1] = value; Markings = marks; } }
+        public int MarkSquare      { get { return Markings[2]; } set { var marks = Markings; marks[2] = value; Markings = marks; } }
+        public int MarkHeart       { get { return Markings[3]; } set { var marks = Markings; marks[3] = value; Markings = marks; } }
+        public int MarkStar        { get { return Markings[4]; } set { var marks = Markings; marks[4] = value; Markings = marks; } }
+        public int MarkDiamond     { get { return Markings[5]; } set { var marks = Markings; marks[5] = value; Markings = marks; } }
         public Image Sprite => PKX.getSprite(this);
         public string ShowdownText => ShowdownSet.getShowdownText(this);
         public string[] QRText => PKX.getQRText(this);

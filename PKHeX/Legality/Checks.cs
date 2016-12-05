@@ -1585,7 +1585,7 @@ namespace PKHeX
                 }
             }
 
-            if (Legal.Bank_NotAvailable7.Contains(baseSpecies))
+            if (Legal.Bank_NotAvailable7.Contains(baseSpecies) && EncounterType != typeof(MysteryGift))
                 AddLine(Severity.Invalid, "Species not obtainable prior to Bank Release.", CheckIdentifier.Special);
 
             if (Legal.EvolveToAlolanForms.Contains(pkm.Species))
@@ -1598,6 +1598,9 @@ namespace PKHeX
                 else if (pkm.AltForm != 1)
                     AddLine(Severity.Invalid, "Form not obtainable prior to Bank Release.", CheckIdentifier.Special);
             }
+
+            if (new[] {422,423}.Contains(pkm.Species) && pkm.AltForm != 1) // East Sea only
+                AddLine(Severity.Invalid, "Form not obtainable prior to Bank Release.", CheckIdentifier.Special);
 
             if (Legal.Bank_NoHidden7.Contains(pkm.Species) && pkm.AbilityNumber == 4)
                 AddLine(Severity.Invalid, "Ability not obtainable prior to Bank Release.", CheckIdentifier.Special);

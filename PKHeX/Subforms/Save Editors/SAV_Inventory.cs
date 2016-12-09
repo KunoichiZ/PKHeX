@@ -17,7 +17,7 @@ namespace PKHeX
 
             for (int i = 0; i < itemlist.Length; i++)
                 if (itemlist[i] == "")
-                    itemlist[i] = $"(Item #{i.ToString("000")})";
+                    itemlist[i] = $"(Item #{i:000})";
 
             HasFreeSpace = SAV.Generation == 7;
             HasNew = SAV.Generation == 7;
@@ -212,7 +212,12 @@ namespace PKHeX
                         itemcnt = ushort.MaxValue;
                 }
                 else if (itemcnt > pouch.MaxCount)
-                    itemcnt = pouch.MaxCount; // Cap at pouch maximum
+                {
+                    if (itemindex == 797 && itemcnt >= 2) // Edge case when for some reason the item count for Z-Ring was 2 in an unedited save and set 1 after using PKHex
+                        itemcnt = 2;
+                    else
+                        itemcnt = pouch.MaxCount; // Cap at pouch maximum
+                }   
                 else if (itemcnt <= 0)
                     continue; // ignore item
 

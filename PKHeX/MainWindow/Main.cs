@@ -38,7 +38,7 @@ namespace PKHeX
                     if (upd <= cur)
                         return;
                     
-                    string message = $"New Update Available! {upd.ToString("d")}";
+                    string message = $"New Update Available! {upd:d}";
                     if (InvokeRequired)
                         try { Invoke((MethodInvoker) delegate { L_UpdateAvailable.Visible = true; L_UpdateAvailable.Text = message; }); }
                         catch { L_UpdateAvailable.Visible = true; L_UpdateAvailable.Text = message; }
@@ -763,7 +763,7 @@ namespace PKHeX
             else
                 Util.Error("Attempted to load an unsupported file type/size.",
                     $"File Loaded:{Environment.NewLine}{path}",
-                    $"File Size:{Environment.NewLine}{input.Length} bytes (0x{input.Length.ToString("X4")})");
+                    $"File Size:{Environment.NewLine}{input.Length} bytes (0x{input.Length:X4})");
         }
         private bool openXOR(byte[] input, string path)
         {
@@ -994,8 +994,8 @@ namespace PKHeX
 
             PB_MarkPentagon.Visible = SAV.Generation >= 6;
             PB_MarkAlola.Visible = SAV.Generation >= 7;
-            TB_Secure1.Visible = TB_Secure2.Visible = L_GameSync.Visible = L_Secure1.Visible = L_Secure2.Visible = SAV.Exportable && SAV.Generation >= 6;
-            TB_GameSync.Visible = SAV.Exportable && SAV.Generation == 6;
+            TB_Secure1.Visible = TB_Secure2.Visible = L_Secure1.Visible = L_Secure2.Visible = SAV.Exportable && SAV.Generation >= 6;
+            TB_GameSync.Visible = L_GameSync.Visible = SAV.Exportable && SAV.Generation >= 6;
 
             FLP_NSparkle.Visible = L_NSparkle.Visible = CHK_NSparkle.Visible = SAV.Generation == 5;
 

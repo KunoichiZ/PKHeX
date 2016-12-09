@@ -91,8 +91,7 @@ namespace PKHeX
         {
             foreach (EncounterArea g in GameSlots)
             {
-                EncounterArea slots = SpecialSlots.FirstOrDefault(l => l.Location == g.Location);
-                if (slots != null)
+                foreach (var slots in SpecialSlots.Where(l => l.Location == g.Location))
                     g.Slots = g.Slots.Concat(slots.Slots).ToArray();
             }
             return GameSlots;
@@ -534,7 +533,7 @@ namespace PKHeX
         internal static bool getEvolutionValid(PKM pkm)
         {
             var curr = getValidPreEvolutions(pkm);
-            var poss = getValidPreEvolutions(pkm, 100);
+            var poss = getValidPreEvolutions(pkm, 100, skipChecks: true);
 
             if (SplitBreed.Contains(getBaseSpecies(pkm, 1)))
                 return curr.Count() >= poss.Count() - 1;
@@ -794,7 +793,7 @@ namespace PKHeX
             }
             return slotLocations;
         }
-        private static IEnumerable<DexLevel> getValidPreEvolutions(PKM pkm, int lvl = -1)
+        private static IEnumerable<DexLevel> getValidPreEvolutions(PKM pkm, int lvl = -1, bool skipChecks = false)
         {
             if (lvl < 0)
                 lvl = pkm.CurrentLevel;
@@ -806,7 +805,7 @@ namespace PKHeX
                 };
 
             var et = getEvolutionTable(pkm);
-            return et.getValidPreEvolutions(pkm, lvl);
+            return et.getValidPreEvolutions(pkm, lvl, skipChecks: skipChecks);
         }
         private static IEnumerable<EncounterStatic> getStatic(PKM pkm, IEnumerable<EncounterStatic> table, int lvl = -1)
         {

@@ -112,12 +112,22 @@ namespace PKHeX
                 return;
             }
             // Something stored in slot. Only display if species is valid.
-            pb.Image = p.Species == 0 ? null : p.Sprite;
+            var sprite = p.Species != 0 ? p.Sprite : null;
+            int slot = getSlot(pb);
+            bool locked = slot < 30 && SAV.getIsSlotLocked(CB_BoxSelect.SelectedIndex, slot);
+            if (locked)
+                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 5, 0, 1);
+            pb.Image = sprite;
             pb.BackColor = Color.Transparent;
         }
         private void getQuickFiller(PictureBox pb, PKM pk)
         {
-            pb.Image = pk.Species == 0 ? null : pk.Sprite;
+            var sprite = pk.Species != 0 ? pk.Sprite : null;
+            int slot = getSlot(pb);
+            bool locked = slot < 30 && SAV.getIsSlotLocked(CB_BoxSelect.SelectedIndex, slot);
+            if (locked)
+                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 5, 0, 1);
+            pb.Image = sprite;
             if (pb.BackColor == Color.Red)
                 pb.BackColor = Color.Transparent;
         }
@@ -157,18 +167,21 @@ namespace PKHeX
                 if (pb.Image == null)
                     return;
 
+                int slot = getSlot(pb);
+                int box = slot >= 30 ? -1 : CB_BoxSelect.SelectedIndex;
+                if (SAV.getIsSlotLocked(box, slot))
+                    return;
+
                 // Set flag to prevent re-entering.
                 DragInfo.slotDragDropInProgress = true;
 
                 DragInfo.slotSource = this;
-                DragInfo.slotSourceSlotNumber = getSlot(pb);
-                int offset = getPKXOffset(DragInfo.slotSourceSlotNumber);
+                DragInfo.slotSourceSlotNumber = slot;
+                DragInfo.slotSourceBoxNumber = box;
+                DragInfo.slotSourceOffset = getPKXOffset(DragInfo.slotSourceSlotNumber);
 
                 // Prepare Data
-                DragInfo.slotPkmSource = SAV.getData(offset, SAV.SIZE_STORED);
-                DragInfo.slotSourceOffset = offset;
-                DragInfo.slotSourceBoxNumber = CB_BoxSelect.SelectedIndex;
-                DragInfo.slotSource = this;
+                DragInfo.slotPkmSource = SAV.getData(DragInfo.slotSourceOffset, SAV.SIZE_STORED);
 
                 // Make a new file name based off the PID
                 byte[] dragdata = SAV.decryptPKM(DragInfo.slotPkmSource);
@@ -194,7 +207,7 @@ namespace PKHeX
                         getQuickFiller(pb, SAV.getStoredSlot(DragInfo.slotSourceOffset));
                     pb.BackgroundImage = null;
 
-                    if (DragInfo.slotDestinationBoxNumber == DragInfo.slotSourceBoxNumber)
+                    if (DragInfo.SameBox)
                         SlotPictureBoxes[DragInfo.slotDestinationSlotNumber].Image = img;
                 }
                 catch (Exception x)
@@ -225,6 +238,12 @@ namespace PKHeX
             // Check for In-Dropped files (PKX,SAV,ETC)
             string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
             if (Directory.Exists(files[0])) { return; }
+            if (SAV.getIsSlotLocked(DragInfo.slotDestinationBoxNumber, DragInfo.slotDestinationSlotNumber))
+            {
+                DragInfo.slotDestinationSlotNumber = -1; // Invalidate
+                Util.Alert("Unable to set to locked slot.");
+                return;
+            }
             if (DragInfo.slotSourceOffset < 0) // file
             {
                 if (files.Length <= 0)
@@ -251,13 +270,13 @@ namespace PKHeX
                     { Console.WriteLine(c); Console.WriteLine(concat); return; }
                 }
 
-                SAV.setStoredSlot(pk, DragInfo.slotDestinationOffset);
+                DragInfo.setPKMtoDestination(SAV, pk);
                 getQuickFiller(SlotPictureBoxes[DragInfo.slotDestinationSlotNumber], pk);
                 Console.WriteLine(c);
             }
             else
             {
-                PKM pkz = SAV.getStoredSlot(DragInfo.slotSourceOffset);
+                PKM pkz = DragInfo.getPKMfromSource(SAV);
                 if (!DragInfo.SourceValid) { } // not overwritable, do nothing
                 else if (ModifierKeys == Keys.Alt && DragInfo.DestinationValid) // overwrite
                 {
@@ -265,13 +284,13 @@ namespace PKHeX
                     if (DragInfo.SameBox)
                         getQuickFiller(SlotPictureBoxes[DragInfo.slotSourceSlotNumber], SAV.BlankPKM); // picturebox
 
-                    SAV.setStoredSlot(SAV.BlankPKM, DragInfo.slotSourceOffset);
+                    DragInfo.setPKMtoSource(SAV, SAV.BlankPKM);
                 }
                 else if (ModifierKeys != Keys.Control && DragInfo.DestinationValid) // move
                 {
                     // Load data from destination
                     PKM pk = ((PictureBox)sender).Image != null
-                        ? SAV.getStoredSlot(DragInfo.slotDestinationOffset)
+                        ? DragInfo.getPKMfromDestination(SAV)
                         : SAV.BlankPKM;
 
                     // Set destination pokemon image to source picture box
@@ -279,18 +298,20 @@ namespace PKHeX
                         getQuickFiller(SlotPictureBoxes[DragInfo.slotSourceSlotNumber], pk);
 
                     // Set destination pokemon data to source slot
-                    SAV.setStoredSlot(pk, DragInfo.slotSourceOffset);
+                    DragInfo.setPKMtoSource(SAV, pk);
                 }
                 else if (DragInfo.SameBox) // clone
                     getQuickFiller(SlotPictureBoxes[DragInfo.slotSourceSlotNumber], pkz);
 
                 // Copy from temp to destination slot.
-                SAV.setStoredSlot(pkz, DragInfo.slotDestinationOffset);
+                DragInfo.setPKMtoDestination(SAV, pkz);
                 getQuickFiller(SlotPictureBoxes[DragInfo.slotDestinationSlotNumber], pkz);
 
                 e.Effect = DragDropEffects.Link;
                 Cursor = DefaultCursor;
             }
+            if (DragInfo.SourceParty || DragInfo.DestinationParty)
+                parent.setParty();
             if (DragInfo.slotSource == null) // another instance or file
             {
                 parent.notifyBoxViewerRefresh();

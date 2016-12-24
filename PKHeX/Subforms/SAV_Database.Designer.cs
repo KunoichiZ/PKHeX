@@ -156,6 +156,8 @@
             this.L_Format = new System.Windows.Forms.Label();
             this.FLP_Level = new System.Windows.Forms.FlowLayoutPanel();
             this.RTB_Instructions = new System.Windows.Forms.RichTextBox();
+            this.Menu_SearchClones = new System.Windows.Forms.ToolStripMenuItem();
+            this.Menu_DeleteClones = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.bpkx30)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.bpkx29)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.bpkx28)).BeginInit();
@@ -938,7 +940,8 @@
             this.Menu_SearchSettings,
             this.Menu_OpenDB,
             this.Menu_Report,
-            this.Menu_Export});
+            this.Menu_Export,
+            this.Menu_DeleteClones});
             this.Menu_Tools.Name = "Menu_Tools";
             this.Menu_Tools.Size = new System.Drawing.Size(47, 20);
             this.Menu_Tools.Text = "Tools";
@@ -950,6 +953,7 @@
             this.Menu_SearchDatabase,
             this.Menu_SearchLegal,
             this.Menu_SearchIllegal,
+            this.Menu_SearchClones,
             this.Menu_SearchAdvanced});
             this.Menu_SearchSettings.Image = global::PKHeX.Properties.Resources.settings;
             this.Menu_SearchSettings.Name = "Menu_SearchSettings";
@@ -1814,6 +1818,21 @@
             this.RTB_Instructions.TabIndex = 119;
             this.RTB_Instructions.Text = "";
             // 
+            // Menu_SearchClones
+            // 
+            this.Menu_SearchClones.CheckOnClick = true;
+            this.Menu_SearchClones.Name = "Menu_SearchClones";
+            this.Menu_SearchClones.Size = new System.Drawing.Size(207, 22);
+            this.Menu_SearchClones.Text = "Clones Only";
+            // 
+            // Menu_DeleteClones
+            // 
+            this.Menu_DeleteClones.Image = global::PKHeX.Properties.Resources.nocheck;
+            this.Menu_DeleteClones.Name = "Menu_DeleteClones";
+            this.Menu_DeleteClones.Size = new System.Drawing.Size(197, 22);
+            this.Menu_DeleteClones.Text = "Delete Clones";
+            this.Menu_DeleteClones.Click += new System.EventHandler(this.Menu_DeleteClones_Click);
+            // 
             // SAV_Database
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -2047,5 +2066,7 @@
         private System.Windows.Forms.ComboBox CB_Format;
         private System.Windows.Forms.RichTextBox RTB_Instructions;
         private System.Windows.Forms.ToolStripMenuItem Menu_SearchAdvanced;
+        private System.Windows.Forms.ToolStripMenuItem Menu_SearchClones;
+        private System.Windows.Forms.ToolStripMenuItem Menu_DeleteClones;
     }
 }

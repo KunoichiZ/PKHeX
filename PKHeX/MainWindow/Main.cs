@@ -3768,8 +3768,11 @@ namespace PKHeX
             var sprite = pk.Species != 0 ? pk.Sprite : null;
             int slot = getSlot(pb);
             bool locked = slot < 30 && SAV.getIsSlotLocked(CB_BoxSelect.SelectedIndex, slot);
+            bool team = slot < 30 && SAV.getIsTeamSet(CB_BoxSelect.SelectedIndex, slot);
             if (locked)
-                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 5, 0, 1);
+                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 26, 0, 1);
+            else if (team)
+                sprite = Util.LayerImage(sprite, Properties.Resources.team, 21, 0, 1);
             pb.Image = sprite;
             if (pb.BackColor == Color.Red)
                 pb.BackColor = Color.Transparent;
@@ -3798,8 +3801,11 @@ namespace PKHeX
             var sprite = p.Species != 0 ? p.Sprite : null;
             int slot = getSlot(pb);
             bool locked = slot < 30 && SAV.getIsSlotLocked(CB_BoxSelect.SelectedIndex, slot);
+            bool team = slot < 30 && SAV.getIsTeamSet(CB_BoxSelect.SelectedIndex, slot);
             if (locked)
-                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 5, 0, 1);
+                sprite = Util.LayerImage(sprite, Properties.Resources.locked, 26, 0, 1);
+            else if (team)
+                sprite = Util.LayerImage(sprite, Properties.Resources.team, 21, 0, 1);
             pb.Image = sprite;
             pb.BackColor = Color.Transparent;
             pb.Visible = true;
@@ -4198,7 +4204,7 @@ namespace PKHeX
                         getQuickFiller(pb, SAV.getStoredSlot(DragInfo.slotSourceOffset));
                     pb.BackgroundImage = null;
                     
-                    if (DragInfo.SameBox)
+                    if (DragInfo.SameBox && DragInfo.DestinationValid)
                         SlotPictureBoxes[DragInfo.slotDestinationSlotNumber].Image = img;
 
                     if (result == DragDropEffects.Copy) // viewed in tabs, apply 'view' highlight
@@ -4236,7 +4242,6 @@ namespace PKHeX
             if (Directory.Exists(files[0])) { loadBoxesFromDB(files[0]); return; }
             if (DragInfo.SameSlot)
                 return;
-            if (DragInfo.SameBox)
             if (SAV.getIsSlotLocked(DragInfo.slotDestinationBoxNumber, DragInfo.slotDestinationSlotNumber))
             {
                 DragInfo.slotDestinationSlotNumber = -1; // Invalidate
@@ -4362,8 +4367,8 @@ namespace PKHeX
 
             public static bool SameBox => slotSourceBoxNumber > -1 && slotSourceBoxNumber == slotDestinationBoxNumber;
             public static bool SameSlot => slotSourceSlotNumber == slotDestinationSlotNumber && slotSourceBoxNumber == slotDestinationBoxNumber;
-            public static bool SourceValid => slotSourceBoxNumber > -1 || SourceParty;
-            public static bool DestinationValid => slotDestinationBoxNumber > -1 || DestinationParty;
+            public static bool SourceValid => slotSourceSlotNumber > -1 && (slotSourceBoxNumber > -1 || SourceParty);
+            public static bool DestinationValid => slotDestinationSlotNumber > -1 && (slotDestinationBoxNumber > -1 || DestinationParty);
             public static bool SourceParty => 30 <= slotSourceSlotNumber && slotSourceSlotNumber < 36;
             public static bool DestinationParty => 30 <= slotDestinationSlotNumber && slotDestinationSlotNumber < 36;
 

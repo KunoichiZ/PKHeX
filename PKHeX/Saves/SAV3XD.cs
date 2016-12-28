@@ -128,7 +128,12 @@ namespace PKHeX
         }
 
         // Configuration
-        public override SaveFile Clone() { return new SAV3XD(Write(DSV: false)); }
+        public override SaveFile Clone()
+        {
+            byte[] data = Write(DSV: false).Skip(Header.Length).ToArray();
+            var sav = new SAV3XD(data) {Header = (byte[]) Header.Clone()};
+            return sav;
+        }
 
         public override int SIZE_STORED => PKX.SIZE_3XSTORED;
         public override int SIZE_PARTY => PKX.SIZE_3XSTORED; // unused
@@ -266,6 +271,11 @@ namespace PKHeX
             if (pk == null)
                 return; // shouldn't ever hit
             
+            if (pk.CurrentRegion == 0)
+                pk.CurrentRegion = 2; // NTSC-U
+            if (pk.OriginalRegion == 0)
+                pk.OriginalRegion = 2; // NTSC-U
+
             // Set Shadow Data back to save
             if (pk.ShadowID <= 0 || pk.ShadowID >= ShadowInfo.Count)
                 return;

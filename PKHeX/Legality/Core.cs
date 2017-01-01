@@ -158,8 +158,8 @@ namespace PKHeX
                 var SOS_MN = getEncounterTables(Properties.Resources.encounter_mn_sos, "sm");
                 MarkG7SMSlots(ref SOS_SN);
                 MarkG7SMSlots(ref SOS_MN);
-                SlotsSN = addExtraTableSlots(REG_SN, SOS_SN);
-                SlotsMN = addExtraTableSlots(REG_MN, SOS_MN);
+                SlotsSN = addExtraTableSlots(REG_SN, SOS_SN).Concat(Encounter_SM_Pelago).ToArray();
+                SlotsMN = addExtraTableSlots(REG_MN, SOS_MN).Concat(Encounter_SM_Pelago).ToArray();
 
                 Evolves7 = new EvolutionTree(Data.unpackMini(Properties.Resources.evos_sm, "sm"), GameVersion.SM, PersonalTable.SM, 802);
             }
@@ -258,6 +258,8 @@ namespace PKHeX
                 if (e.Gender != -1 && e.Gender != pkm.Gender)
                     continue;
                 if (e.Level != pkm.Met_Level)
+                    continue;
+                if (e.Form != pkm.AltForm && !FormChange.Contains(pkm.Species))
                     continue;
 
                 // Defer to EC/PID check

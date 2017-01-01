@@ -249,33 +249,44 @@ namespace PKHeX
             new EncounterStatic { Species = 718, Form = 1, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
             new EncounterStatic { Species = 718, Form = 2, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
             new EncounterStatic { Species = 718, Form = 3, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+        };
 
-            new EncounterStatic { Species = 021, Location = 30016, Level = -1, }, // Spearow
-            new EncounterStatic { Species = 041, Location = 30016, Level = -1, }, // Zubat
-            new EncounterStatic { Species = 060, Location = 30016, Level = -1, }, // Poliwag
-            new EncounterStatic { Species = 064, Location = 30016, Level = -1, }, // Kadabra
-            new EncounterStatic { Species = 081, Location = 30016, Level = -1, }, // Magnemite
-            new EncounterStatic { Species = 090, Location = 30016, Level = -1, }, // Shellder
-            new EncounterStatic { Species = 092, Location = 30016, Level = -1, }, // Gastly
-            new EncounterStatic { Species = 120, Location = 30016, Level = -1, }, // Staryu
-            new EncounterStatic { Species = 123, Location = 30016, Level = -1, }, // Scyther
-            new EncounterStatic { Species = 127, Location = 30016, Level = -1, }, // Pinsir
-            new EncounterStatic { Species = 131, Location = 30016, Level = -1, }, // Lapras
-            new EncounterStatic { Species = 198, Location = 30016, Level = -1, }, // Murkrow
-            new EncounterStatic { Species = 227, Location = 30016, Level = -1, }, // Skarmory
-            new EncounterStatic { Species = 278, Location = 30016, Level = -1, }, // Wingull
-            new EncounterStatic { Species = 375, Location = 30016, Level = -1, }, // Metang
-            new EncounterStatic { Species = 426, Location = 30016, Level = -1, }, // Drifblim
-            new EncounterStatic { Species = 429, Location = 30016, Level = -1, }, // Mismagius
-            new EncounterStatic { Species = 587, Location = 30016, Level = -1, }, // Emolga
-            new EncounterStatic { Species = 627, Location = 30016, Level = -1, }, // Rufflet
-            new EncounterStatic { Species = 629, Location = 30016, Level = -1, }, // Vullaby
-            new EncounterStatic { Species = 661, Location = 30016, Level = -1, }, // Fletchling
-            new EncounterStatic { Species = 703, Location = 30016, Level = -1, }, // Carbink
-            new EncounterStatic { Species = 707, Location = 30016, Level = -1, }, // Klefki
-            new EncounterStatic { Species = 709, Location = 30016, Level = -1, }, // Trevenant
-            new EncounterStatic { Species = 731, Location = 30016, Level = -1, }, // Pikipek
-            new EncounterStatic { Species = 771, Location = 30016, Level = -1, }, // Pyukumuku
+        private static readonly EncounterArea[] Encounter_SM_Pelago =
+        {
+            new EncounterArea
+            {
+                Location = 30016, // Poké Pelago
+                Slots = new[]
+                {
+                    // Note: These level ranges are arbitrary -- no 'official'/verified documentation available.
+                    new EncounterSlot {Species = 021, LevelMin = 10, LevelMax = 55}, // Spearow
+                    new EncounterSlot {Species = 041, LevelMin = 10, LevelMax = 55}, // Zubat
+                    new EncounterSlot {Species = 060, LevelMin = 10, LevelMax = 55}, // Poliwag
+                    new EncounterSlot {Species = 064, LevelMin = 10, LevelMax = 55}, // Kadabra
+                    new EncounterSlot {Species = 081, LevelMin = 10, LevelMax = 55}, // Magnemite
+                    new EncounterSlot {Species = 090, LevelMin = 10, LevelMax = 55}, // Shellder
+                    new EncounterSlot {Species = 092, LevelMin = 10, LevelMax = 55}, // Gastly
+                    new EncounterSlot {Species = 120, LevelMin = 10, LevelMax = 55}, // Staryu
+                    new EncounterSlot {Species = 123, LevelMin = 10, LevelMax = 55}, // Scyther
+                    new EncounterSlot {Species = 127, LevelMin = 10, LevelMax = 55}, // Pinsir
+                    new EncounterSlot {Species = 131, LevelMin = 10, LevelMax = 55}, // Lapras
+                    new EncounterSlot {Species = 198, LevelMin = 10, LevelMax = 55}, // Murkrow
+                    new EncounterSlot {Species = 227, LevelMin = 10, LevelMax = 55}, // Skarmory
+                    new EncounterSlot {Species = 278, LevelMin = 10, LevelMax = 55}, // Wingull
+                    new EncounterSlot {Species = 375, LevelMin = 10, LevelMax = 55}, // Metang
+                    new EncounterSlot {Species = 426, LevelMin = 10, LevelMax = 55}, // Drifblim
+                    new EncounterSlot {Species = 429, LevelMin = 10, LevelMax = 55}, // Mismagius
+                    new EncounterSlot {Species = 587, LevelMin = 10, LevelMax = 55}, // Emolga
+                    new EncounterSlot {Species = 627, LevelMin = 10, LevelMax = 55}, // Rufflet
+                    new EncounterSlot {Species = 629, LevelMin = 10, LevelMax = 55}, // Vullaby
+                    new EncounterSlot {Species = 661, LevelMin = 10, LevelMax = 55}, // Fletchling
+                    new EncounterSlot {Species = 703, LevelMin = 10, LevelMax = 55}, // Carbink
+                    new EncounterSlot {Species = 707, LevelMin = 10, LevelMax = 55}, // Klefki
+                    new EncounterSlot {Species = 709, LevelMin = 10, LevelMax = 55}, // Trevenant
+                    new EncounterSlot {Species = 731, LevelMin = 10, LevelMax = 55}, // Pikipek
+                    new EncounterSlot {Species = 771, LevelMin = 10, LevelMax = 55}, // Pyukumuku
+                },
+            }
         };
         private static readonly EncounterTrade[] TradeGift_SM = // @ a\1\5\5
         {
@@ -964,6 +975,7 @@ namespace PKHeX
             new EncounterStatic { Species = 079, Relearn = new[] {562}},                    // Slowpoke: Belch
             new EncounterStatic { Species = 278, Relearn = new[] {282}},                    // Wingull: Knock Off
             new EncounterStatic { Species = 063, Relearn = new[] {112,379,385,285,8,375}},  // Abra: Barrier, Power Trick, Guard Swap, Skill Swap, Ice Punch, Psycho Shift
+            new EncounterStatic { Species = 052, Relearn = new[] {274}},                    // Meowth: Assist
             new EncounterStatic { Species = 088, Form = 1, Relearn = new[] {184,228,372}},  // Grimer1: Scary Face, Pursuit, Assurance
             new EncounterStatic { Species = 088, Relearn = new[] {184}},                    // Grimer: Scary Face
             new EncounterStatic { Species = 096, Relearn = new[] {112,274,385,290,285,8}},  // Drowzee: Barrier, Assist, Guard Swap, Secret Power, Skill Swap, Ice Punch
@@ -977,8 +989,7 @@ namespace PKHeX
             new EncounterStatic { Species = 629, Relearn = new[] {282,313}},                // Vullaby: Knock Off, Fake Tears
             new EncounterStatic { Species = 742, Relearn = new[] {285}},                    // Cutiefly: Skill Swap
             new EncounterStatic { Species = 548, Relearn = new[] {361,117}},                // Petilil: Healing Wish, Bide
-            new EncounterStatic { Species = 546, Relearn = new[] {262,251,415/*,445*/}},    // Cottonee: Memento, Beat Up, Switcheroo, [~Captivate]
-            new EncounterStatic { Species = 054, Relearn = new[] {290}},                    // Psyduck: Secret Power
+            new EncounterStatic { Species = 546, Relearn = new[] {262,251,415}},            // Cottonee: Memento, Beat Up, Switcheroo
             new EncounterStatic { Species = 066, Relearn = new[] {27,8,379}},               // Machop: Rolling Kick, Ice Punch, Power Trick
             new EncounterStatic { Species = 524, Relearn = new[] {222,174}},                // Roggenrola: Magnitude, Curse
             new EncounterStatic { Species = 302, Relearn = new[] {236,445,368,286}},        // Sableye: Moonlight, Captivate, Metal Burst, Imprison
@@ -994,7 +1005,7 @@ namespace PKHeX
             new EncounterStatic { Species = 751, Relearn = new[] {471}},                    // Dewpider: Power Split
             new EncounterStatic { Species = 753, Relearn = new[] {432}},                    // Fomantis: Defog
             new EncounterStatic { Species = 755, Relearn = new[] {133}},                    // Morelull: Amnesia
-            new EncounterStatic { Species = 046, Relearn = new[] {563/*,68*/}},             // Paras: Rototiller, [~Counter]
+            new EncounterStatic { Species = 046, Relearn = new[] {563}},                    // Paras: Rototiller
             new EncounterStatic { Species = 060, Relearn = new[] {283}},                    // Poliwag: Endeavor
             new EncounterStatic { Species = 118, Relearn = new[] {114,60}},                 // Goldeen: Haze, Psybeam
             new EncounterStatic { Species = 661, Relearn = new[] {289}},                    // Fletchling: Snatch
@@ -1019,17 +1030,16 @@ namespace PKHeX
             new EncounterStatic { Species = 776, Relearn = new[] {469,279,83}},             // Turtonator: Wide Guard, Revenge, Fire Spin
             new EncounterStatic { Species = 239, Relearn = new[] {8,27,112}},               // Elekid: Ice Punch, Rolling Kick, Barrier
             new EncounterStatic { Species = 074, Relearn = new[] {203,103,431,264,174}},    // Geodude: Endure, Screech, Rock Climb, Focus Punch, Curse
-            new EncounterStatic { Species = 444, Relearn = new[] {232}},                    // Gabite: Metal Claw
             new EncounterStatic { Species = 707, Relearn = new[] {415}},                    // Klefki: Switcheroo
             new EncounterStatic { Species = 780, Relearn = new[] {583,13}},                 // Drampa: Play Rough, Razor Wind
-            new EncounterStatic { Species = 361, Relearn = new[] {415,506}},                // Snorunt: Switcheroo, Hex
+            new EncounterStatic { Species = 361, Relearn = new[] {415}},                    // Snorunt: Switcheroo
             new EncounterStatic { Species = 215, Relearn = new[] {274}},                    // Sneasel: Assist
             new EncounterStatic { Species = 037, Relearn = new[] {541,290}},                // Vulpix: Tail Slap, Secret Power
             new EncounterStatic { Species = 582, Relearn = new[] {352,363}},                // Vanillite: Water Pulse, Natural Gift
             new EncounterStatic { Species = 422, Relearn = new[] {124}},                    // Shellos: Sludge
             new EncounterStatic { Species = 131, Relearn = new[] {419}},                    // Lapras: Avalanche
             new EncounterStatic { Species = 102, Relearn = new[] {335,285,384,381,267,246}},// Exeggcute: Block, Skill Swap, Power Swap, Lucky Chant, Nature Power, Ancient Power
-            new EncounterStatic { Species = 123, Relearn = new[] {211,501,432,179,68}},	// Scyther: Steel Wing, Quick Guard, Defog, Reversal, Counter
+            new EncounterStatic { Species = 123, Relearn = new[] {211,501,432,179,68}},	    // Scyther: Steel Wing, Quick Guard, Defog, Reversal, Counter
             new EncounterStatic { Species = 198, Relearn = new[] {375,260,195}},            // Murkrow: Psycho Shift, Flatter, Perish Song
             new EncounterStatic { Species = 447, Relearn = new[] {299}},                    // Riolu: Blaze Kick
             new EncounterStatic { Species = 147, Relearn = new[] {245}},                    // Dratini: Extreme Speed
@@ -1037,7 +1047,7 @@ namespace PKHeX
             
             // Island Scan
 
-            new EncounterStatic {Species = 069, Relearn = new[] {562, 438, 499}},            // Bellsprout: Belch, Power Whip, Clear Smog
+            new EncounterStatic {Species = 069, Relearn = new[] {562, 438, 499}},           // Bellsprout: Belch, Power Whip, Clear Smog
             new EncounterStatic {Species = 158, Relearn = new[] {313, 260}},                // Totodile: Fake Tears, Flatter
             new EncounterStatic {Species = 183, Relearn = new[] {293, 383}},                // Marill: Camouflage, Copycat
             new EncounterStatic {Species = 298, Relearn = new[] {293, 383}},                // Azurill: Camouflage, Copycat

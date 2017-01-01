@@ -221,7 +221,7 @@ namespace PKHeX
                 /* 25 */            //  = 0x64C00;  // [204]    BattleSpotData
                 /* 26 */ PokeFinderSave = 0x65000;  // [B60]    PokeFinderSave
                 /* 27 */ WondercardFlags = 0x65C00; // [3F50]   MysteryGiftSave
-                /* 28 */            //  = 0x69C00;  // [358]    Record
+                /* 28 */ Record         = 0x69C00;  // [358]    Record
                 /* 29 */            //  = 0x6A000;  // [728]    Data Block
                 /* 30 */            //  = 0x6A800;  // [200]    GameSyncSave
                 /* 31 */            //  = 0x6AA00;  // [718]    PokeDiarySave
@@ -289,6 +289,7 @@ namespace PKHeX
         public int PokeDexLanguageFlags { get; private set; } = int.MinValue;
         public int Fashion { get; set; } = int.MinValue;
         public int FashionLength { get; set; } = int.MinValue;
+        public int Record { get; set; } = int.MinValue;
 
         private const int ResortCount = 93;
         public PKM[] ResortPKM
@@ -415,6 +416,11 @@ namespace PKHeX
         {
             get { return Util.TrimFromZero(Encoding.Unicode.GetString(Data, TrainerCard + 0x38, 0x1A)); }
             set { Encoding.Unicode.GetBytes(value.PadRight(13, '\0')).CopyTo(Data, TrainerCard + 0x38); }
+        }
+        public int DressUpSkinColor
+        {
+            get { return (Data[TrainerCard + 0x54] >> 2) & 7; }
+            set { Data[TrainerCard + 0x54] = (byte)((Data[TrainerCard + 0x54] & ~(7 << 2)) | (value << 2)); }
         }
         public int BallThrowType
         {
@@ -576,6 +582,40 @@ namespace PKHeX
         
         public ulong AlolaTime { get { return BitConverter.ToUInt64(Data, AdventureInfo + 0x48); } set { BitConverter.GetBytes(value).CopyTo(Data, AdventureInfo+0x48);} }
 
+        // Stat Records
+        public int getRecord(int recordID)
+        {
+            int ofs = getRecordOffset(recordID);
+            if (recordID < 100)
+                return BitConverter.ToInt32(Data, ofs);
+            if (recordID < 200)
+                return BitConverter.ToInt16(Data, ofs);
+            return 0;
+        }
+        public void setRecord(int recordID, int value)
+        {
+            int ofs = getRecordOffset(recordID);
+            if (recordID < 100)
+                BitConverter.GetBytes(value).CopyTo(Data, ofs);
+            if (recordID < 200)
+                BitConverter.GetBytes((short)value).CopyTo(Data, ofs);
+        }
+        public int getRecordMax(int recordID)
+        {
+            if (recordID < 100)
+                return int.MaxValue;
+            if (recordID < 200)
+                return short.MaxValue;
+            return 0;
+        }
+        public int getRecordOffset(int recordID)
+        {
+            if (recordID < 100)
+                return Record + recordID*4;
+            if (recordID < 200)
+                return Record + recordID*2 + 200; // first 100 are 4bytes, so bias the difference
+            return -1;
+        }
 
         public ushort PokeFinderCameraVersion
         {

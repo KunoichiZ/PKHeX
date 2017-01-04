@@ -280,27 +280,20 @@ namespace PKHeX
 
             OpenFileDialog ofd = new OpenFileDialog
             {
-                Filter = $"Decrypted PKM File|{supported}" +
+                Filter = $"Supported Files|main;*.sav;*.bin;*.{ekx};{supported};*.bak" +
+                         $"|3DS Main Files|main" +
+                         $"|Save Files|*.sav" +
+                         $"|Decrypted PKM File|{supported}" +
                          $"|Encrypted PKM File|*.{ekx}" +
                          "|Binary File|*.bin" +
-                         "|All Files|*.*",
-                RestoreDirectory = true,
-                FilterIndex = 4,
-                FileName = "main",
-            };
-
-            // Reset file dialog path if it no longer exists
-            if (!Directory.Exists(ofd.InitialDirectory))
-                ofd.InitialDirectory = WorkingDirectory;
+                         "|Backup File|*.bak" +
+                         "|All Files|*.*"
+            };             
 
             // Detect main
             string path = SaveUtil.detectSaveFile();
             if (path != null)
-            { ofd.InitialDirectory = Path.GetDirectoryName(path); }
-            else if (File.Exists(Path.Combine(ofd.InitialDirectory, "main")))
-            { }
-            else if (!Directory.Exists(ofd.InitialDirectory))
-            { ofd.RestoreDirectory = false; ofd.FilterIndex = 1; ofd.FileName = ""; }
+            { ofd.FileName = path; }
 
             if (ofd.ShowDialog() == DialogResult.OK) 
                 openQuick(ofd.FileName);
@@ -899,13 +892,14 @@ namespace PKHeX
             populateFields(SAV.BlankPKM);
             SAV = sav;
 
+            string title = $"PKH{(HaX ? "a" : "e")}X ({Properties.Resources.ProgramVersion}) - " + $"SAV{SAV.Generation}: ";
             if (path != null) // Actual save file
             {
                 SAV.FilePath = Path.GetDirectoryName(path);
                 SAV.FileName = Path.GetExtension(path) == ".bak"
                     ? Path.GetFileName(path).Split(new[] { " [" }, StringSplitOptions.None)[0]
                     : Path.GetFileName(path);
-                Text = $"PKH{(HaX ? "a" : "e")}X - " + $"SAV{SAV.Generation}: {Path.GetFileNameWithoutExtension(Util.CleanFileName(SAV.BAKName))}"; // more descriptive
+                Text = title + $"{Path.GetFileNameWithoutExtension(Util.CleanFileName(SAV.BAKName))}"; // more descriptive
 
                 // If backup folder exists, save a backup.
                 string backupName = Path.Combine(BackupPath, Util.CleanFileName(SAV.BAKName));
@@ -918,7 +912,7 @@ namespace PKHeX
             {
                 SAV.FilePath = null;
                 SAV.FileName = "Blank Save File";
-                Text = $"PKH{(HaX ? "a" : "e")}X - " + $"SAV{SAV.Generation}: {SAV.FileName} [{SAV.OT} ({SAV.Version})]";
+                Text = title + $"{SAV.FileName} [{SAV.OT} ({SAV.Version})]";
 
                 GB_SAVtools.Visible = false;
             }
@@ -1004,7 +998,7 @@ namespace PKHeX
                 B_OpenLinkInfo.Enabled = SAV.HasLink;
                 B_CGearSkin.Enabled = SAV.Generation == 5;
 
-                B_OpenTrainerInfo.Visible = B_OpenItemPouch.Visible = SAV.HasParty; // Box RS
+                B_OpenTrainerInfo.Enabled = B_OpenItemPouch.Enabled = SAV.HasParty; // Box RS
             }
             GB_SAVtools.Visible = FLP_SAVtools.Controls.Cast<Control>().Any(c => c.Enabled);
             foreach (Control c in FLP_SAVtools.Controls.Cast<Control>())
@@ -1052,7 +1046,6 @@ namespace PKHeX
             if (SAV.Version == GameVersion.BATREV)
             {
                 L_SaveSlot.Visible = CB_SaveSlot.Visible = true;
-                CB_SaveSlot.Items.Clear();
                 CB_SaveSlot.DisplayMember = "Text"; CB_SaveSlot.ValueMember = "Value";
                 CB_SaveSlot.DataSource = new BindingSource(((SAV4BR) SAV).SaveSlots.Select(i => new ComboItem
                 {
@@ -3072,7 +3065,7 @@ namespace PKHeX
         {
             if (SAV.Edited)
             {
-                if (Util.Prompt(MessageBoxButtons.YesNo, "Any unsaved changes will be lost.  Are you sure you want to close PKHeX?") != DialogResult.Yes)
+                if (Util.Prompt(MessageBoxButtons.YesNo, "Any unsaved changes will be lost.", "Are you sure you want to close PKHeX?") != DialogResult.Yes)
                 {
                     e.Cancel = true;
                 }

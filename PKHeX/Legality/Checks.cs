@@ -426,13 +426,6 @@ namespace PKHeX
                 return new CheckResult(Severity.Invalid, "Invalid location for hatched egg.", CheckIdentifier.Encounter);
             }
 
-            if (Legal.getIsFossil(pkm))
-            {
-                EncounterMatch = Encounters.Fossil;
-                return pkm.AbilityNumber != 4
-                    ? new CheckResult(Severity.Valid, "Valid revived fossil.", CheckIdentifier.Encounter)
-                    : new CheckResult(Severity.Invalid, "Hidden ability on revived fossil.", CheckIdentifier.Encounter);
-            }
             EncounterMatch = Legal.getValidFriendSafari(pkm);
             if (EncounterMatch != null)
             {
@@ -1122,7 +1115,9 @@ namespace PKHeX
                         return new CheckResult(Severity.Invalid, "Untraded -- Handling Trainer Affection should be zero.", CheckIdentifier.History);
 
                     // We know it is untraded (HT is empty), if it must be trade evolved flag it.
-                    if (Legal.getHasTradeEvolved(pkm) && (EncounterMatch as EncounterSlot[])?.Any(slot => slot.Species == pkm.Species) != true)
+                    if (Legal.getHasTradeEvolved(pkm) // if evo chain requires a trade
+                        && (EncounterMatch as EncounterSlot[])?.Any(slot => slot.Species == pkm.Species) != true // Wild Encounter
+                        && (EncounterMatch as EncounterStatic)?.Species != pkm.Species) // Static Encounter
                     {
                         if (pkm.Species != 350) // Milotic
                             return new CheckResult(Severity.Invalid, "Untraded -- requires a trade evolution.", CheckIdentifier.History);
@@ -1655,7 +1650,7 @@ namespace PKHeX
             if (pkm.GenNumber < 6)
                 return res;
 
-            var validMoves = Legal.getValidMoves(pkm).ToArray();
+            var validMoves = Legal.getValidMoves(pkm, EvoChain).ToArray();
             if (pkm.Species == 235) // Smeargle
             {
                 for (int i = 0; i < 4; i++)

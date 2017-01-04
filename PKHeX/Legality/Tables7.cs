@@ -200,7 +200,7 @@ namespace PKHeX
             new EncounterStatic { Species = 158, Form = 0, Level = 12, Relearn = new[]{232, 099, 055, 043}, Location = 042, }, // Totodile @ Seaward Cave
             new EncounterStatic { Species = 633, Form = 0, Level = 13, Relearn = new[]{372, 029, 044, 116}, Location = 034, }, // Deino @ Ten Carat Hill
             new EncounterStatic { Species = 116, Form = 0, Level = 18, Relearn = new[]{225, 239, 055, 043}, Location = 014, }, // Horsea @ Kala'e Bay
-            new EncounterStatic { Species = 599, Form = 0, Level = 08, Relearn = new[]{268, 011, 000, 000}, Location = 018, }, // Klink @ Hau'oli City
+            new EncounterStatic { Species = 599, Form = 0, Level = 08, Relearn = new[]{268, 011, 000, 000}, Location = 020, }, // Klink @ Hau'oli City
             new EncounterStatic { Species = 152, Form = 0, Level = 10, Relearn = new[]{073, 077, 075, 045}, Location = 012, }, // Chikorita @ Route 2
             new EncounterStatic { Species = 607, Form = 0, Level = 10, Relearn = new[]{051, 109, 083, 123}, Location = 038, }, // Litwick @ Hau'oli Cemetery
                                                                                                                        
@@ -352,31 +352,31 @@ namespace PKHeX
 
         internal static readonly int[] PastGenAlolanScans =
         {
-            152, // Chikorita
-            155, // Cyndaquil
-            158, // Totodile
-
             069, // Bellsprout
             111, // Rhyhorn
             116, // Horsea
-            183, // Marill
+            152, // Chikorita
+            155, // Cyndaquil
+            158, // Totodile
             220, // Swinub
-            315, // Roselia
             363, // Spheal
-            404, // Luxio
             543, // Venipede
             574, // Gothita
-            578, // Duosion
             599, // Klink
             607, // Litwick
             610, // Axew
             633, // Deino
             679, // Honedge
 
+            183, 298, // Marill {Azurill}
+            315, 406, // Roselia {Budew}
+
             175, // [468] Togekiss (Togepi)
             287, // [288] Vigoroth (Slakoth)
             396, // [397] Staravia (Starly)
+            403, // [404] Luxio (Shinx)
             495, // [497] Serperior (Snivy)
+            577, // [578] Duosion (Solosis)
 
             498, // [500] Emboar (Tepig)
             501, // [503] Samurott (Oshawott)
@@ -536,6 +536,92 @@ namespace PKHeX
             565, // Carracosta
             566, // Archen
             567, // Archeops
+
+            // Island Scan
+            069, // Bellsprout
+            070, // Weepinbell
+            071, // Victreebel
+            111, // Rhyhorn
+            112, // Rhydon
+            464, // Rhyperior
+            116, // Horsea
+            117, // Seadra
+            230, // Kingdra
+            152, // Chikorita
+            153, // Bayleef
+            154, // Meganium
+            155, // Cyndaquil
+            156, // Quilava
+            157, // Typhlosion
+            158, // Totodile
+            159, // Croconaw
+            160, // Feraligatr
+            175, // Togepi
+            176, // Togetic
+            468, // Togekiss
+            183, // Marill
+            184, // Azumarill
+            220, // Swinub
+            221, // Piloswine
+            287, // Slakoth
+            288, // Vigoroth
+            289, // Slaking
+            473, // Mamoswine
+            298, // Azurill
+            363, // Spheal
+            364, // Sealeo
+            365, // Walrein
+            396, // Starly
+            397, // Staravia
+            398, // Staraptor
+            403, // Shinx
+            404, // Luxio
+            405, // Luxray
+            406, // Budew
+            407, // Roserade
+            315, // Roselia
+            495, // Snivy
+            496, // Servine
+            497, // Serperior
+            498, // Tepig
+            499, // Pignite
+            500, // Emboar
+            501, // Oshawott
+            502, // Dewott
+            503, // Samurott
+            532, // Timburr
+            533, // Gurdurr
+            534, // Conkeldurr
+            540, // Sewaddle
+            541, // Swadloon
+            542, // Leavanny
+            543, // Venipede
+            544, // Whirlipede
+            545, // Scolipede
+            574, // Gothita
+            575, // Gothorita
+            576, // Gothitelle
+            577, // Solosis
+            578, // Duosion
+            579, // Reuniclus
+            599, // Klink
+            600, // Klang
+            601, // Klinklang
+            602, // Tynamo
+            603, // Eelektrik
+            604, // Eelektross
+            607, // Litwick
+            608, // Lampent
+            609, // Chandelure
+            610, // Axew
+            611, // Fraxure
+            612, // Haxorus
+            633, // Deino
+            634, // Zweilous
+            635, // Hydreigon
+            679, // Honedge
+            680, // Doublade
+            681, // Aegislash
         };
         internal static readonly int[] Bank_NotAvailable7 = // Unobtainable Species
         {

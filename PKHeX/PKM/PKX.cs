@@ -575,8 +575,11 @@ namespace PKHeX
         }
 
         // Font Related
+#if WINDOWS
         [DllImport("gdi32.dll")]
         private static extern IntPtr AddFontMemResourceEx(IntPtr pbFont, uint cbFont, IntPtr pdv, [In] ref uint pcFonts);
+#endif
+
         private static readonly PrivateFontCollection s_FontCollection = new PrivateFontCollection();
         private static FontFamily[] FontFamilies
         {
@@ -595,11 +598,18 @@ namespace PKHeX
             try
             {
                 byte[] fontData = Resources.pgldings_normalregular;
+#if WINDOWS
                 IntPtr fontPtr = Marshal.AllocCoTaskMem(fontData.Length);
                 Marshal.Copy(fontData, 0, fontPtr, fontData.Length);
                 s_FontCollection.AddMemoryFont(fontPtr, Resources.pgldings_normalregular.Length); uint dummy = 0;
                 AddFontMemResourceEx(fontPtr, (uint)Resources.pgldings_normalregular.Length, IntPtr.Zero, ref dummy);
                 Marshal.FreeCoTaskMem(fontPtr);
+#else
+                GCHandle fontHandle = GCHandle.Alloc(fontData, GCHandleType.Pinned);
+ 				s_FontCollection.AddMemoryFont(fontHandle.AddrOfPinnedObject(), fontData.Length);
+ 				fontHandle.Free();
+#endif
+
             }
             catch (Exception ex) { Util.Error("Unable to add ingame font.", ex); }
         }
@@ -2512,6 +2522,16 @@ namespace PKHeX
                 .Replace("\u0027", "\u2019") // farfetch'd
                 .PadRight(value.Length + 1, (char)0); // Null Terminator
             return Encoding.BigEndianUnicode.GetBytes(TempNick);
+        }
+
+        public static string[] getPKMExtensions()
+        {
+            const int gens = 7;
+            var result = new List<string>();
+            result.AddRange(new [] {"ck3", "xk3", "bk4"}); // Special Cases
+            for (int i = 1; i < gens; i++)
+                result.Add("pk"+i);
+            return result.ToArray();
         }
     }
 }

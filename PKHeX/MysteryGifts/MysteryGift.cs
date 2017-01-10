@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq;
 
-namespace PKHeX
+namespace PKHeX.Core
 {
     public abstract class MysteryGift : IEncounterable
     {
@@ -80,7 +80,7 @@ namespace PKHeX
             }
         }
 
-        public string Extension => "." + GetType().Name.ToLower();
+        public string Extension => GetType().Name.ToLower();
         public string FileName => getCardHeader() + "." + Extension;
         public virtual byte[] Data { get; set; }
         public abstract PKM convertToPKM(SaveFile SAV);

@@ -4,7 +4,7 @@ using System.Linq;
 
 using QRCoder;
 
-namespace PKHeX.Saves.Substructures
+namespace PKHeX.Core
 {
     // anatomy of a QR7:
     // u32 magic; // POKE
@@ -19,7 +19,7 @@ namespace PKHeX.Saves.Substructures
     // sizeof(QR7) == 0x1A2
 
 
-    public class QR7
+    public static class QR7
     {
         private static bool hasGenderDifferences(int species)
         {

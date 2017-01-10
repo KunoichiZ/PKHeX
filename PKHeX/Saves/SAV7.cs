@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Text;
 
-namespace PKHeX
+namespace PKHeX.Core
 {
     public sealed class SAV7 : SaveFile
     {
@@ -1179,12 +1179,6 @@ namespace PKHeX
                 $"{b.ID:00}: {b.Offset:X5}-{b.Offset + b.Length:X5}, {b.Length:X5}{Environment.NewLine}");
         }
 
-        public override bool RequiresMemeCrypto
-        {
-            get
-            {
-                return true;
-            }
-        }
+        public override bool RequiresMemeCrypto => true;
     }
 }

@@ -48,13 +48,13 @@ namespace PKHeX.WinForms
 
             int r = 0;
             row.Cells[r++].Value = s.ToString("000") + (f > 0 ? "-"+f.ToString("00") :"");
-            row.Cells[r++].Value = PKX.getSprite(s, f, 0, 0, false, false, Main.SAV.Generation);
+            row.Cells[r++].Value = PKMUtil.getSprite(s, f, 0, 0, false, false, Main.SAV.Generation);
             row.Cells[r++].Value = species[index];
             row.Cells[r++].Value = s > 721 || Legal.PastGenAlolanNatives.Contains(s);
             row.Cells[r].Style.BackColor = mapColor((int)((p.BST - 175) / 3f));
             row.Cells[r++].Value = p.BST.ToString("000");
-            row.Cells[r++].Value = (Image)Resources.ResourceManager.GetObject("type_icon_" + p.Types[0].ToString("00"));
-            row.Cells[r++].Value = p.Types[0] == p.Types[1] ? Resources.slotTrans : (Image)Resources.ResourceManager.GetObject("type_icon_" + p.Types[1].ToString("00"));
+            row.Cells[r++].Value = PKMUtil.getTypeSprite(p.Types[0]);
+            row.Cells[r++].Value = p.Types[0] == p.Types[1] ? Resources.slotTrans : PKMUtil.getTypeSprite(p.Types[1]);
             row.Cells[r].Style.BackColor = mapColor(p.HP);
             row.Cells[r++].Value = p.HP.ToString("000");
             row.Cells[r].Style.BackColor = mapColor(p.ATK);

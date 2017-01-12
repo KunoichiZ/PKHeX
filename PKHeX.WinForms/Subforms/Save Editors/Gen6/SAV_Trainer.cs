@@ -361,7 +361,7 @@ namespace PKHeX.WinForms
                 };
 
             for (int i = 0; i < 8; i++)
-                pba[i].Image = Util.ChangeOpacity(bma[i], cba[i].Checked ? 1 : 0.1);
+                pba[i].Image = ImageUtil.ChangeOpacity(bma[i], cba[i].Checked ? 1 : 0.1);
         }
         private void getTextBoxes()
         {
@@ -422,8 +422,8 @@ namespace PKHeX.WinForms
             MT_Seconds.Text = SAV.PlayedSeconds.ToString();
 
             // Load PSS Sprite
-            CB_MultiplayerSprite.SelectedValue = SAV.Sprite;
-            PB_Sprite.Image = (Image)Core.Properties.Resources.ResourceManager.GetObject("tr_" + SAV.Sprite.ToString("00"));
+            CB_MultiplayerSprite.SelectedValue = SAV.MultiplayerSpriteID;
+            PB_Sprite.Image = SAV.Sprite();
             
             if (SAV.XY)
             {
@@ -519,7 +519,7 @@ namespace PKHeX.WinForms
             SAV.PlayedSeconds = ushort.Parse(MT_Seconds.Text)%60;
 
             // Sprite
-            SAV.Sprite = Convert.ToByte(CB_MultiplayerSprite.SelectedValue);
+            SAV.MultiplayerSpriteID = Convert.ToByte(CB_MultiplayerSprite.SelectedValue);
 
             // Appearance
             if (SAV.XY)
@@ -657,7 +657,8 @@ namespace PKHeX.WinForms
 
         private void CB_Multi_SelectedIndexChanged(object sender, EventArgs e)
         {
-            PB_Sprite.Image = (Image)Core.Properties.Resources.ResourceManager.GetObject(Main.SAV.ORAS || Main.SAV.ORASDEMO ? "tr_" + WinFormsUtil.getIndex(CB_MultiplayerSprite).ToString("00") : "tr_00");
+            SAV.MultiplayerSpriteID = WinFormsUtil.getIndex(CB_MultiplayerSprite);
+            PB_Sprite.Image = SAV.Sprite();
         }
     }
 }

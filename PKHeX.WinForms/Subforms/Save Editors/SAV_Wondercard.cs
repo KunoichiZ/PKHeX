@@ -125,6 +125,8 @@ namespace PKHeX.WinForms
                     return "Gen5 Mystery Gift|*.pgf|All Files|*.*";
                 case 6:
                     return "Gen6 Mystery Gift|*.wc6;*.wc6full|All Files|*.*";
+                case 7:
+                    return "Gen7 Mystery Gift|*.wc7;*.wc7full|All Files|*.*";
                 default:
                     return "";
             }
@@ -201,7 +203,10 @@ namespace PKHeX.WinForms
             int lastUnfilled = getLastUnfilledByType(mg, mga);
             if (lastUnfilled > -1 && lastUnfilled < index)
                 index = lastUnfilled;
-            if (mg.Type != mga.Gifts[index].Type)
+
+            if (mg is PCD && mga.Gifts[index] is PGT)
+                mg = (mg as PCD).Gift;
+            else if (mg.Type != mga.Gifts[index].Type)
             {
                 WinFormsUtil.Alert("Can't set slot here.", $"{mg.Type} != {mga.Gifts[index].Type}");
                 return;
@@ -382,7 +387,7 @@ namespace PKHeX.WinForms
 
             // Prepare Data
             MysteryGift card = mga.Gifts[index];
-            string filename = Util.CleanFileName($"{card.CardID:0000} - {card.CardTitle}.wc6");
+            string filename = Util.CleanFileName($"{card.CardID:0000} - {card.CardTitle}.{card.Extension}");
 
             // Make File
             string newfile = Path.Combine(Path.GetTempPath(), Util.CleanFileName(filename));
@@ -415,14 +420,18 @@ namespace PKHeX.WinForms
                 { WinFormsUtil.Alert("Data size invalid.", files[0]); return; }
                 
                 byte[] data = File.ReadAllBytes(files[0]);
-                if (data.Length != mga.Gifts[index].Data.Length)
+                MysteryGift mg = MysteryGift.getMysteryGift(data, new FileInfo(files[0]).Extension);
+
+                if (mg is PCD && mga.Gifts[index] is PGT)
+                    mg = (mg as PCD).Gift;
+                else if (mg.Type != mga.Gifts[index].Type)
                 {
-                    WinFormsUtil.Alert("Can't set slot here.",
-                        $"{data.Length} != {mga.Gifts[index].Data.Length}, {mga.Gifts[index].Type}", files[0]);
+                    WinFormsUtil.Alert("Can't set slot here.", $"{mg.Type} != {mga.Gifts[index].Type}");
                     return;
                 }
-
-                mga.Gifts[index].Data = data;
+                setBackground(index, Core.Properties.Resources.slotSet);
+                mga.Gifts[index] = mg.Clone();
+                
                 setCardID(mga.Gifts[index].CardID);
                 viewGiftData(mga.Gifts[index]);
             }

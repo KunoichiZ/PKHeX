@@ -74,7 +74,7 @@ namespace PKHeX.Core
                 case GameVersion.Pt:
                     return new[] {new[] {0x0000, 0xCF18, 0xCF2A}, new[] {0xCF2C, 0x1F0FC, 0x1F10E}};
                 case GameVersion.HGSS:
-                    return new[] {new[] {0x0000, 0xF618, 0xF626}, new[] {0xF700, 0x12300, 0x21A0E}};
+                    return new[] {new[] {0x0000, 0xF618, 0xF626}, new[] {0xF700, 0x21A00, 0x21A0E}};
                     
                 default:
                     return null;
@@ -592,6 +592,36 @@ namespace PKHeX.Core
                     return true;
             return false;
         }
+
+        private static int[] matchMysteryGifts(MysteryGift[] value)
+        {
+            if (value == null)
+                return null;
+
+            int[] cardMatch = new int[8];
+            for (int i = 0; i < 8; i++)
+            {
+                var pgt = value[i] as PGT;
+                if (pgt == null)
+                    continue;
+
+                cardMatch[i] = pgt.Slot = 3;
+                for (byte j = 0; j < 3; j++)
+                {
+                    var pcd = value[8 + j] as PCD;
+                    if (pcd == null)
+                        continue;
+
+                    // Check if data matches (except Slot @ 0x02)
+                    if (!pcd.Gift.Data.Take(2).Skip(1).SequenceEqual(pgt.Data.Take(2).Skip(1)))
+                        continue;
+
+                    cardMatch[i] = pgt.Slot = j;
+                    break;
+                }
+            }
+            return cardMatch;
+        }
         public override MysteryGiftAlbum GiftAlbum
         {
             get
@@ -657,6 +687,11 @@ namespace PKHeX.Core
             {
                 if (value == null)
                     return;
+
+                var Matches = matchMysteryGifts(value); // automatically applied
+                if (Matches == null)
+                    return;
+
                 for (int i = 0; i < 8; i++) // 8 PGT
                     if (value[i] is PGT)
                         setData(value[i].Data, WondercardData + i*PGT.Size);

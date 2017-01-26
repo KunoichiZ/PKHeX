@@ -9,15 +9,17 @@ namespace PKHeX.Core
         public static int Region = 7;
         public static int ConsoleRegion = 1;
         public static string OT_Name = "PKHeX";
-        public static int OT_Gender;
+        public static int OT_Gender; // Male
+        public static int Language = 1; // en
 
-        public static void updateConfig(int SUBREGION, int COUNTRY, int _3DSREGION, string TRAINERNAME, int TRAINERGENDER)
+        public static void updateConfig(int SUBREGION, int COUNTRY, int _3DSREGION, string TRAINERNAME, int TRAINERGENDER, int LANGUAGE)
         {
             Region = SUBREGION;
             Country = COUNTRY;
             ConsoleRegion = _3DSREGION;
             OT_Name = TRAINERNAME;
             OT_Gender = TRAINERGENDER;
+            Language = LANGUAGE;
         }
 
         /// <summary>
@@ -108,7 +110,7 @@ namespace PKHeX.Core
                     return new PK5(data, ident);
                 case 6:
                     PKM pkx = new PK6(data, ident);
-                    if (pkx.SM)
+                    if (pkx.SM || pkx.VC || pkx.Horohoro)
                         pkx = new PK7(data, ident);
                     return pkx;
                 default:
@@ -160,7 +162,7 @@ namespace PKHeX.Core
                             break;
                         }
                         if (toFormat == 7)
-                            pkm = null; // pkm.convertPK1toPK7();
+                            pkm = ((PK1) pk).convertToPK7();
                         break;
                     case nameof(PK2):
                         if (PKMType == typeof (PK1))
@@ -221,7 +223,7 @@ namespace PKHeX.Core
                             break;
                         goto case nameof(PK6);
                     case nameof(PK6):
-                        pkm = new PK7(pkm.Data, pkm.Identifier);
+                        pkm = ((PK6)pkm).convertToPK7();
                         if (toFormat == 7)
                             break;
                         goto case nameof(PK7);

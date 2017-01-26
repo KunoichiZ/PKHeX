@@ -218,6 +218,9 @@ namespace PKHeX.Core
                 }
                 metSM_00000_good.CopyTo(metSM_00000, 0);
 
+                for (int i = 2; i <= 5; i++) // distinguish first set of regions (unused) from second (used)
+                    metSM_30000[i] += " (-)";
+
                 // Set the first entry of a met location to "" (nothing)
                 // Fix (None) tags
                 abilitylist[0] = itemlist[0] = movelist[0] = metXY_00000[0] = metBW2_00000[0] = metHGSS_00000[0] = "(" + itemlist[0] + ")";
@@ -267,6 +270,7 @@ namespace PKHeX.Core
         public static List<ComboItem> MoveDataSource, ItemDataSource, SpeciesDataSource, BallDataSource, NatureDataSource, AbilityDataSource, VersionDataSource;
         public static List<ComboItem> HaXMoveDataSource;
         private static List<ComboItem> metGen2, metGen3, metGen3CXD, metGen4, metGen5, metGen6, metGen7;
+
         public static void InitializeDataSources(GameStrings s)
         {
             int[] ball_nums = { 007, 576, 013, 492, 497, 014, 495, 493, 496, 494, 011, 498, 008, 006, 012, 015, 009, 005, 499, 010, 001, 016, 851 };
@@ -276,6 +280,8 @@ namespace PKHeX.Core
             NatureDataSource = Util.getCBList(s.natures, null);
             AbilityDataSource = Util.getCBList(s.abilitylist, null);
             VersionDataSource = Util.getCBList(s.gamelist, Legal.Games_7sm, Legal.Games_6oras, Legal.Games_6xy, Legal.Games_5, Legal.Games_4, Legal.Games_4e, Legal.Games_4r, Legal.Games_3, Legal.Games_3e, Legal.Games_3r, Legal.Games_3s);
+            VersionDataSource.AddRange(Util.getCBList(s.gamelist, Legal.Games_7vc1).OrderBy(g => g.Value)); // stuff to end unsorted
+            VersionDataSource.AddRange(Util.getCBList(s.gamelist, Legal.Games_7go).OrderBy(g => g.Value)); // stuff to end unsorted
 
             HaXMoveDataSource = Util.getCBList(s.movelist, null);
             MoveDataSource = HaXMoveDataSource.Where(m => !Legal.Z_Moves.Contains(m.Value)).ToList();
@@ -415,6 +421,12 @@ namespace PKHeX.Core
 
                 case GameVersion.SN:
                 case GameVersion.MN:
+
+                case GameVersion.GO:
+                case GameVersion.RD:
+                case GameVersion.BU:
+                case GameVersion.GN:
+                case GameVersion.YW:
                     return metGen7.Take(3).Concat(metGen7.Skip(3).OrderByDescending(loc => loc.Value < 200)).ToList(); // Secret Base
             }
 

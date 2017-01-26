@@ -93,7 +93,7 @@ namespace PKHeX.Core
         public override int CNT_Smart { get { return Data[0x27]; } set { Data[0x27] = (byte)value; } }
         public override int CNT_Tough { get { return Data[0x28]; } set { Data[0x28] = (byte)value; } }
         public override int CNT_Sheen { get { return Data[0x29]; } set { Data[0x29] = (byte)value; } }
-        public byte _0x2A { get { return Data[0x2A]; } protected set { Data[0x2A] = value; } }
+        public byte PelagoEventStatus { get { return Data[0x2A]; } protected set { Data[0x2A] = value; } }
         private byte PKRS { get { return Data[0x2B]; } set { Data[0x2B] = value; } }
         public override int PKRS_Days { get { return PKRS & 0xF; } set { PKRS = (byte)(PKRS & ~0xF | value); } }
         public override int PKRS_Strain { get { return PKRS >> 4; } set { PKRS = (byte)(PKRS & 0xF | value << 4); } }
@@ -485,10 +485,15 @@ namespace PKHeX.Core
         }
         public void FixMemories()
         {
+            Enjoyment = Fullness = 0;
+            Geo1_Region = Geo1_Country =
+                Geo2_Region = Geo2_Country =
+                Geo3_Region = Geo3_Country =
+                Geo4_Region = Geo4_Country =
+                Geo5_Region = Geo5_Country = 0;
+
             if (IsEgg) // No memories if is egg.
             {
-                Geo1_Country = Geo2_Country = Geo3_Country = Geo4_Country = Geo5_Country =
-                Geo1_Region = Geo2_Region = Geo3_Region = Geo4_Region = Geo5_Region =
                 HT_Friendship = HT_Affection = HT_TextVar = HT_Memory = HT_Intensity = HT_Feeling =
                 /* OT_Friendship */ OT_Affection = OT_TextVar = OT_Memory = OT_Intensity = OT_Feeling = 0;
 
@@ -505,59 +510,6 @@ namespace PKHeX.Core
             {
                 HT_TextVar = HT_Memory = HT_Intensity = HT_Feeling =
                 OT_TextVar = OT_Memory = OT_Intensity = OT_Feeling = 0;
-                Geo1_Region = Geo1_Country = 
-                    Geo2_Region = Geo2_Country = 
-                    Geo3_Region = Geo3_Country = 
-                    Geo4_Region = Geo4_Country = 
-                    Geo5_Region = Geo5_Country = 0;
-                return;
-            }
-
-            Geo1_Region = Geo1_Country > 0 ? Geo1_Region : 0;
-            Geo2_Region = Geo2_Country > 0 ? Geo2_Region : 0;
-            Geo3_Region = Geo3_Country > 0 ? Geo3_Region : 0;
-            Geo4_Region = Geo4_Country > 0 ? Geo4_Region : 0;
-            Geo5_Region = Geo5_Country > 0 ? Geo5_Region : 0;
-
-            while (true)
-            {
-                if (Geo5_Country != 0 && Geo4_Country == 0)
-                {
-                    Geo4_Country = Geo5_Country;
-                    Geo4_Region = Geo5_Region;
-                    Geo5_Country = Geo5_Region = 0;
-                }
-                if (Geo4_Country != 0 && Geo3_Country == 0)
-                {
-                    Geo3_Country = Geo4_Country;
-                    Geo3_Region = Geo4_Region;
-                    Geo4_Country = Geo4_Region = 0;
-                    continue;
-                }
-                if (Geo3_Country != 0 && Geo2_Country == 0)
-                {
-                    Geo2_Country = Geo3_Country;
-                    Geo2_Region = Geo3_Region;
-                    Geo3_Country = Geo3_Region = 0;
-                    continue;
-                }
-                if (Geo2_Country != 0 && Geo1_Country == 0)
-                {
-                    Geo1_Country = Geo2_Country;
-                    Geo1_Region = Geo2_Region;
-                    Geo2_Country = Geo2_Region = 0;
-                    continue;
-                }
-                if (Geo1_Country == 0 && !IsUntraded && !IsUntradedEvent6)
-                {
-                    if ((Country | Region) == 0)
-                        break;
-                    // Traded Non-Eggs/Events need to have a current location.
-                    Geo1_Country = Country;
-                    Geo1_Region = Region;
-                    continue;
-                }
-                break;
             }
         }
 
@@ -634,11 +586,13 @@ namespace PKHeX.Core
         }
         public void TradeMemory(bool Bank)
         {
-            return; // appears no memories are set, ever?
-            // HT_Memory = 4; // Link trade to [VAR: General Location]
-            // HT_TextVar = Bank ? 0 : 9; // Somewhere (Bank) : Pokécenter (Trade)
-            // HT_Intensity = 1;
-            // HT_Feeling = Util.rand.Next(0, Bank ? 9 : 19); // 0-9 Bank, 0-19 Trade
+            if (!Bank)
+                return;
+
+            HT_Memory = 4; // Link trade to [VAR: General Location]
+            HT_TextVar = 0; // Somewhere (Bank)
+            HT_Intensity = 1;
+            HT_Feeling = Util.rand.Next(0, 9); // 0-9 Bank
         }
 
         // Legality Properties

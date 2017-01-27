@@ -500,7 +500,7 @@ namespace PKHeX.Core
             else if (lvl < pkm.Met_Level)
                 AddLine(Severity.Invalid, "Current level is below met level.", CheckIdentifier.Level);
             else if ((pkm.WasEgg || EncounterMatch == null) && !Legal.getEvolutionValid(pkm) && pkm.Species != 350)
-                AddLine(Severity.Invalid, "Evolution criteria not satisfied (level/trade evolution required).", CheckIdentifier.Level);
+                AddLine(Severity.Invalid, "Evolution not valid (or level/trade evolution unsatisfied).", CheckIdentifier.Level);
             else if (lvl > pkm.Met_Level && lvl > 1 && lvl != 100 && pkm.EXP == PKX.getEXP(pkm.Stat_Level, pkm.Species))
                 AddLine(Severity.Fishy, "Current experience matches level threshold.", CheckIdentifier.Level);
             else
@@ -1384,19 +1384,26 @@ namespace PKHeX.Core
 
             if (pkm.GenNumber == 7)
             {
-                if (pkm.HT_Memory != 0)
-                    AddLine(Severity.Invalid, "Should not have a HT Memory.", CheckIdentifier.Memory);
-                if (pkm.HT_Intensity != 0)
-                    AddLine(Severity.Invalid, "Should not have a HT Memory Intensity value.", CheckIdentifier.Memory);
-                if (pkm.HT_TextVar != 0)
-                    AddLine(Severity.Invalid, "Should not have a HT Memory TextVar value.", CheckIdentifier.Memory);
-                if (pkm.HT_Feeling != 0)
-                    AddLine(Severity.Invalid, "Should not have a HT Memory Feeling value.", CheckIdentifier.Memory);
+                bool hasMemory = pkm.VC1; // SM do not
+                string prefix = hasMemory ? "Should " : "Should not ";
+
+                if (hasMemory ^ pkm.HT_Memory != 0)
+                    AddLine(Severity.Invalid, prefix + "have a HT Memory.", CheckIdentifier.Memory);
+                if (hasMemory ^ pkm.HT_Intensity != 0)
+                    AddLine(Severity.Invalid, prefix + "Should not have a HT Memory Intensity value.", CheckIdentifier.Memory);
+                if (hasMemory ^ pkm.HT_TextVar != 0)
+                    AddLine(Severity.Invalid, prefix + "Should not have a HT Memory TextVar value.", CheckIdentifier.Memory);
+                if (hasMemory ^ pkm.HT_Feeling != 0)
+                    AddLine(Severity.Invalid, prefix + "Should not have a HT Memory Feeling value.", CheckIdentifier.Memory);
                 return;
             }
 
             switch (pkm.HT_Memory)
             {
+                case 0:
+                    if (pkm.Format != 6 || string.IsNullOrEmpty(pkm.HT_Name))
+                        return;
+                    AddLine(Severity.Invalid, "HT Memory is missing.", CheckIdentifier.Memory); return;
                 case 1: // {0} met {1} at... {2}. {1} threw a Poké Ball at it, and they started to travel together. {4} that {3}.
                     AddLine(Severity.Invalid, "HT Memory: Handling Trainer did not capture this.", CheckIdentifier.Memory); return;
 

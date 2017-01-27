@@ -77,7 +77,6 @@ namespace PKHeX.Core
                     fixEvoTreeSM();
                     break;
                 case GameVersion.ORAS:
-                    fixEvoTreeORAS();
                     break;
             }
         }
@@ -116,16 +115,14 @@ namespace PKHeX.Core
             marowak.Form = -1; marowak.Banlist = new[] {GameVersion.SN, GameVersion.MN};
             Lineage[105].Chain.Add(new EvolutionStage { StageEntryMethods = new List<EvolutionMethod> { marowak } });
         }
-        private void fixEvoTreeORAS()
-        {
-        }
 
         private int getIndex(PKM pkm)
         {
             if (pkm.Format < 7)
                 return pkm.Species;
 
-            return Personal.getFormeIndex(pkm.Species, pkm.AltForm);
+            var form = pkm.Species == 678 ? 0 : pkm.AltForm; // override Meowstic forme index
+            return Personal.getFormeIndex(pkm.Species, form);
         }
         private int getIndex(EvolutionMethod evo)
         {
@@ -218,7 +215,7 @@ namespace PKHeX.Core
                 if (pkm.AltForm != Form)
                     return false;
 
-            if (Banlist.Contains((GameVersion)pkm.Version))
+            if (!skipChecks && Banlist.Contains((GameVersion)pkm.Version))
                 return false;
 
             switch (Method)

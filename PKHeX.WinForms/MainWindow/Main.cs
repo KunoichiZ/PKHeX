@@ -122,6 +122,26 @@ namespace PKHeX.WinForms
 
             FLP_SAVtools.Scroll += WinFormsUtil.PanelScroll;
 
+            // Add Legality check to right click context menus
+            // ToolStripItem can't be in multiple contextmenus, so put the item back when closing.
+            var cm = new[]{mnuV, mnuVSD};
+            foreach (var c in cm)
+            {
+                c.Opening += (sender, e) =>
+                {
+                    var items = ((ContextMenuStrip)sender).Items;
+                    if (ModifierKeys == Keys.Control)
+                        items.Add(mnuLLegality);
+                    else if (items.Contains(mnuLLegality))
+                        items.Remove(mnuLLegality);
+                };
+            }
+            mnuL.Opening += (sender, e) =>
+            {
+                if (mnuL.Items[0] != mnuLLegality)
+                    mnuL.Items.Insert(0, mnuLLegality);
+            };
+
             // Load WC6 folder to legality
             refreshWC6DB();
             // Load WC7 folder to legality
@@ -707,7 +727,7 @@ namespace PKHeX.WinForms
             {
                 openSAV(sav, path);
             }
-            else if ((temp = PKMConverter.getPKMfromBytes(input)) != null)
+            else if ((temp = PKMConverter.getPKMfromBytes(input, prefer: SAV.Generation)) != null)
             {
                 PKM pk = PKMConverter.convertToFormat(temp, SAV.PKMType, out c);
                 if (pk == null)
@@ -1206,7 +1226,11 @@ namespace PKHeX.WinForms
             if (!string.IsNullOrWhiteSpace(path)) // Actual Save
             {
                 // Check location write protection
-                if ((new DirectoryInfo(path).Attributes & FileAttributes.ReadOnly) != 0)
+                bool locked = true;
+                try { locked = (new DirectoryInfo(path).Attributes & FileAttributes.ReadOnly) != 0; }
+                catch { }
+
+                if (locked)
                     WinFormsUtil.Alert("Save file's location is write protected:\n" + path,
                         "If the path is a removable disk (SD card), please ensure the write protection switch is not set.");
             }
@@ -1569,9 +1593,12 @@ namespace PKHeX.WinForms
             if (!ability_list.Any())
                 ability_list.Add(GameInfo.Strings.abilitylist[0] + abilIdentifier[0]);
 
+            bool tmp = fieldsLoaded;
+            fieldsLoaded = false;
             int abil = CB_Ability.SelectedIndex;
             CB_Ability.DataSource = ability_list;
             CB_Ability.SelectedIndex = abil < 0 || abil >= CB_Ability.Items.Count ? 0 : abil;
+            fieldsLoaded = tmp;
         }
         // PKX Data Calculation Functions //
         private void setIsShiny(object sender)
@@ -1640,7 +1667,7 @@ namespace PKHeX.WinForms
 
                 if (ekx == null) return;
                 
-                PKM pk = PKMConverter.getPKMfromBytes(ekx);
+                PKM pk = PKMConverter.getPKMfromBytes(ekx, prefer: SAV.Generation);
                 if (pk == null) { WinFormsUtil.Alert("Decoded data not a valid PKM.", $"QR Data Size: {ekx.Length}"); }
                 else
                 {
@@ -3168,9 +3195,12 @@ namespace PKHeX.WinForms
                 SAV.Edited = false;
                 WinFormsUtil.Alert("SAV exported to:", main.FileName);
             }
-            catch (UnauthorizedAccessException x)
+            catch (Exception x)
             {
-                WinFormsUtil.Error(x.Message, "If destination is a removable disk (SD card), please ensure the write protection switch is not set.");
+                if (x is UnauthorizedAccessException || x is FileNotFoundException)
+                    WinFormsUtil.Error("Unable to save." + Environment.NewLine + x.Message, 
+                        "If destination is a removable disk (SD card), please ensure the write protection switch is not set.");
+                else throw;
             }
         }
 
@@ -3860,7 +3890,7 @@ namespace PKHeX.WinForms
             foreach (byte[] data in from file in filepaths where PKX.getIsPKM(new FileInfo(file).Length) select File.ReadAllBytes(file))
             {
                 string c;
-                PKM temp = PKMConverter.getPKMfromBytes(data);
+                PKM temp = PKMConverter.getPKMfromBytes(data, prefer: SAV.Generation);
                 PKM pk = PKMConverter.convertToFormat(temp, SAV.PKMType, out c);
 
                 if (pk != null) // Write to save
@@ -4215,7 +4245,7 @@ namespace PKHeX.WinForms
 
                 byte[] data = File.ReadAllBytes(file);
                 MysteryGift mg = MysteryGift.getMysteryGift(data, fi.Extension);
-                PKM temp = mg != null ? mg.convertToPKM(SAV) : PKMConverter.getPKMfromBytes(data);
+                PKM temp = mg?.convertToPKM(SAV) ?? PKMConverter.getPKMfromBytes(data, prefer: SAV.Generation);
                 string c;
 
                 PKM pk = PKMConverter.convertToFormat(temp, SAV.PKMType, out c);

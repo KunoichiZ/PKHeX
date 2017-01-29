@@ -75,8 +75,9 @@ namespace PKHeX.Core
         /// </summary>
         /// <param name="data">Raw data of the Pokemon file.</param>
         /// <param name="ident">Optional identifier for the Pokemon.  Usually the full path of the source file.</param>
+        /// <param name="prefer">Optional identifier for the preferred generation.  Usually the generation of the destination save file.</param>
         /// <returns>An instance of <see cref="PKM"/> created from the given <paramref name="data"/>, or null if <paramref name="data"/> is invalid.</returns>
-        public static PKM getPKMfromBytes(byte[] data, string ident = null)
+        public static PKM getPKMfromBytes(byte[] data, string ident = null, int prefer = 7)
         {
             checkEncrypted(ref data);
             switch (getPKMDataFormat(data))
@@ -110,7 +111,7 @@ namespace PKHeX.Core
                     return new PK5(data, ident);
                 case 6:
                     var pkx = new PK6(data, ident);
-                    return checkPKMFormat7(pkx);
+                    return checkPKMFormat7(pkx, prefer);
                 default:
                     return null;
             }
@@ -120,26 +121,19 @@ namespace PKHeX.Core
         /// Checks if the input PK6 file is really a PK7, if so, updates the object.
         /// </summary>
         /// <param name="pk">PKM to check</param>
+        /// <param name="prefer">Prefer a certain generation over another</param>
         /// <returns>Updated PKM if actually PK7</returns>
-        private static PKM checkPKMFormat7(PK6 pk) => checkPK6is7(pk) ? new PK7(pk.Data, pk.Identifier) : (PKM)pk;
+        private static PKM checkPKMFormat7(PK6 pk, int prefer) => checkPK6is7(pk, prefer) ? new PK7(pk.Data, pk.Identifier) : (PKM)pk;
         /// <summary>
         /// Checks if the input PK6 file is really a PK7.
         /// </summary>
-        /// <param name="pk">PKM to check</param>
+        /// <param name="pk">PK6 to check</param>
+        /// <param name="prefer">Prefer a certain generation over another</param>
         /// <returns>Boolean is a PK7</returns>
-        private static bool checkPK6is7(PK6 pk)
+        private static bool checkPK6is7(PK6 pk, int prefer)
         {
             if (pk.Version > Legal.MaxGameID_6)
                 return true;
-            if (pk.Geo1_Country != 0)
-                return false;
-
-            int lvl = pk.CurrentLevel;
-            if (lvl < 100 && pk.EncounterType != 0)
-                return false;
-            if (pk.EncounterType > 24)
-                return true;
-
             if (pk.Enjoyment != 0 || pk.Fullness != 0)
                 return false;
 
@@ -155,7 +149,26 @@ namespace PKHeX.Core
             if (pk.HeldItem > Legal.MaxItemID_6_AO)
                 return true;
 
-            return false; // 6
+            int et = pk.EncounterType;
+            if (et != 0)
+            {
+                if (pk.CurrentLevel < 100) // can't be hyper trained
+                    return false;
+
+                if (pk.GenNumber != 4) // can't have encounter type
+                    return true;
+                if (et > 24) // invalid encountertype
+                    return true;
+            }
+
+            int mb = BitConverter.ToUInt16(pk.Data, 0x16);
+            if (mb > 0xAAA)
+                return false;
+            for (int i = 0; i < 6; i++)
+                if ((mb >> (i << 1) & 3) == 3) // markings are 10 or 01 (or 00), never 11
+                    return false;
+
+            return prefer > 6;
         }
 
         public static PKM convertToFormat(PKM pk, Type PKMType, out string comment)

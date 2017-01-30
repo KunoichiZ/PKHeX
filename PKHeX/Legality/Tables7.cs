@@ -127,6 +127,16 @@ namespace PKHeX.Core
             new EncounterStatic { Gift = true, Species = 789, Level = 5,  Location = 142, Shiny = false, IV3 = true, Version = GameVersion.SN}, // Cosmog                00 FF
             new EncounterStatic { Gift = true, Species = 789, Level = 5,  Location = 144, Shiny = false, IV3 = true, Version = GameVersion.MN}, // Cosmog                00 FF
             new EncounterStatic { Gift = true, Species = 142, Level = 40, Location = 172, }, // Aerodactyl @ Seafolk Village
+
+            new EncounterStatic { Gift = true, Species = 718, Form = 0, Level = 30, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 1, Level = 30, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 2, Level = 30, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 3, Level = 30, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+
+            new EncounterStatic { Gift = true, Species = 718, Form = 0, Level = 50, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 1, Level = 50, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 2, Level = 50, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
+            new EncounterStatic { Gift = true, Species = 718, Form = 3, Level = 50, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
             
             new EncounterStatic // Magearna (Bottle Cap) 00 FF
             {
@@ -243,19 +253,9 @@ namespace PKHeX.Core
             new EncounterStatic { Species = 103, Form = 1, Level = 40, Relearn = new[]{000, 000, 000, 000}, Ability = 1, Location = 184, }, // Exeggutor-1 @ Exeggutor Island
             new EncounterStatic { Species = 785, Form = 0, Level = 60, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 030, }, // Tapu Koko
             new EncounterStatic { Species = 542, Form = 0, Level = 57, Relearn = new[]{382, 437, 014, 494}, Location = -1, }, // Leavanny
-            
-            new EncounterStatic { Species = 718, Form = 0, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 1, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 2, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 3, Level = 30, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            
-            new EncounterStatic { Species = 718, Form = 0, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 1, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 2, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
-            new EncounterStatic { Species = 718, Form = 3, Level = 50, Relearn = new[]{000, 000, 000, 000}, Shiny = false, Ability = 1, Location = 118, IV3 = true, }, // Zygarde
         };
-
-        private static readonly EncounterArea[] Encounter_SM_Pelago =
+        
+        private static readonly EncounterArea[] Encounter_Pelago_SM =
         {
             new EncounterArea
             {
@@ -281,8 +281,6 @@ namespace PKHeX.Core
                     new EncounterSlot {Species = 426, LevelMin = 10, LevelMax = 55}, // Drifblim
                     new EncounterSlot {Species = 429, LevelMin = 10, LevelMax = 55}, // Mismagius
                     new EncounterSlot {Species = 587, LevelMin = 10, LevelMax = 55}, // Emolga
-                    new EncounterSlot {Species = 627, LevelMin = 10, LevelMax = 55}, // Rufflet
-                    new EncounterSlot {Species = 629, LevelMin = 10, LevelMax = 55}, // Vullaby
                     new EncounterSlot {Species = 661, LevelMin = 10, LevelMax = 55}, // Fletchling
                     new EncounterSlot {Species = 703, LevelMin = 10, LevelMax = 55}, // Carbink
                     new EncounterSlot {Species = 707, LevelMin = 10, LevelMax = 55}, // Klefki
@@ -292,6 +290,8 @@ namespace PKHeX.Core
                 },
             }
         };
+        private static readonly EncounterArea[] Encounter_Pelago_SN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot {Species = 627, LevelMin = 10, LevelMax = 55}, /* Rufflet SUN  */ } } };
+        private static readonly EncounterArea[] Encounter_Pelago_MN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot {Species = 629, LevelMin = 10, LevelMax = 55}, /* Vullaby MOON */ } } };
         private static readonly EncounterTrade[] TradeGift_SM = // @ a\1\5\5
         {
             // Trades - 4.bin
@@ -434,14 +434,9 @@ namespace PKHeX.Core
             496, 499, 502, //2
             497, 500, 503, //3
         };
-        internal static readonly int[] Ban_Gen4Ball_AllowG7 =
+        internal static readonly int[] Ban_Gen4Ball_7 =
         {
-            152, 155, 158, //1 - Chikorita, Cyndaquil, Totodile
-            153, 156, 159, //2
-            154, 157, 160, //3
-            495, 498, 501, //1 - Snivy, Tepig, Oshawott
-            496, 499, 502, //2
-            497, 500, 503, //3
+            566, 567, 696, 697, 698, 699 // Fossil Only obtain
         };
 
         internal static readonly int[] ZygardeMoves =

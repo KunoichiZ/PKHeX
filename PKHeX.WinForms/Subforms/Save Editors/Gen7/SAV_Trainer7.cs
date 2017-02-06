@@ -111,6 +111,7 @@ namespace PKHeX.WinForms
 
             MT_TID.Text = SAV.TID.ToString("00000");
             MT_SID.Text = SAV.SID.ToString("00000");
+            MT_G7TID.Text = SAV.TrainerID7.ToString("000000");
             MT_Money.Text = SAV.Money.ToString();
             
             CB_Country.SelectedValue = SAV.Country;
@@ -384,6 +385,13 @@ namespace PKHeX.WinForms
             if (editing) return;
             int index = CB_Stats.SelectedIndex;
             SAV.setRecord(index, (int)NUD_Stat.Value);
+        }
+
+        private void B_GenTID_Click(object sender, EventArgs e)
+        {
+            var tuple = SaveUtil.getTIDSID(Util.ToUInt32(MT_G7TID.Text), ModifierKeys == Keys.Control);
+            MT_TID.Text = tuple.Item1.ToString("D5");
+            MT_SID.Text = tuple.Item2.ToString("D5");
         }
 
         private readonly Dictionary<int, string> RecordList = new Dictionary<int, string>

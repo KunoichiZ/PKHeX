@@ -43,6 +43,8 @@ namespace PKHeX.Core
                 {
                     case 1: parsePK1(pk); break;
                 }
+
+                if (!Parse.Any())
                 switch (pk.GenNumber)
                 {
                     case 6: parsePK6(pk); break;
@@ -68,8 +70,8 @@ namespace PKHeX.Core
                     return;
             }
             catch { Valid = false; }
-            AllSuggestedMoves = !pkm.IsOriginValid() ? new int[4] : getSuggestedMoves(true, true, true);
-            AllSuggestedRelearnMoves = !pkm.IsOriginValid() ? new int[4] : Legal.getValidRelearn(pkm, -1).ToArray();
+            AllSuggestedMoves = !pkm.IsOriginValid ? new int[4] : getSuggestedMoves(true, true, true);
+            AllSuggestedRelearnMoves = !pkm.IsOriginValid ? new int[4] : Legal.getValidRelearn(pkm, -1).ToArray();
             AllSuggestedMovesAndRelearn = AllSuggestedMoves.Concat(AllSuggestedRelearnMoves).ToArray();
         }
 
@@ -85,11 +87,12 @@ namespace PKHeX.Core
         private void parsePK1(PKM pk)
         {
             pkm = pk;
-            if (!pkm.IsOriginValid())
+            if (!pkm.IsOriginValid)
             { AddLine(Severity.Invalid, "Species does not exist in origin game.", CheckIdentifier.None); return; }
             
             updateEncounterChain();
             updateMoveLegality();
+            updateEncounterInfo();
             verifyNickname();
             verifyDVs();
             verifyG1OT();
@@ -97,23 +100,25 @@ namespace PKHeX.Core
         private void parsePK6(PKM pk)
         {
             pkm = pk;
-            if (!pkm.IsOriginValid())
+            if (!pkm.IsOriginValid)
             { AddLine(Severity.Invalid, "Species does not exist in origin game.", CheckIdentifier.None); return; }
 
             updateRelearnLegality();
             updateEncounterChain();
             updateMoveLegality();
+            updateEncounterInfo();
             updateChecks();
         }
         private void parsePK7(PKM pk)
         {
             pkm = pk;
-            if (!pkm.IsOriginValid())
+            if (!pkm.IsOriginValid)
             { AddLine(Severity.Invalid, "Species does not exist in origin game.", CheckIdentifier.None); return; }
 
             updateRelearnLegality();
             updateEncounterChain();
             updateMoveLegality();
+            updateEncounterInfo();
             updateChecks();
         }
 
@@ -139,16 +144,17 @@ namespace PKHeX.Core
             Parse.Add(Encounter);
             EvoChain = Legal.getEvolutionChain(pkm, EncounterMatch);
         }
-        private void updateChecks()
+        private void updateEncounterInfo()
         {
             EncounterMatch = EncounterMatch ?? pkm.Species;
 
             EncounterType = EncounterMatch?.GetType();
             if (EncounterType == typeof (MysteryGift))
                 EncounterType = EncounterType.BaseType;
+        }
+        private void updateChecks()
+        {
             History = verifyHistory();
-
-            AddLine(Encounter);
             AddLine(History);
 
             verifyECPID();
@@ -229,7 +235,7 @@ namespace PKHeX.Core
 
         public int[] getSuggestedRelearn()
         {
-            if (RelearnBase == null || pkm.GenNumber < 6 || !pkm.IsOriginValid())
+            if (RelearnBase == null || pkm.GenNumber < 6 || !pkm.IsOriginValid)
                 return new int[4];
 
             if (!pkm.WasEgg)
@@ -247,9 +253,9 @@ namespace PKHeX.Core
         }
         public int[] getSuggestedMoves(bool tm, bool tutor, bool reminder)
         {
-            if (pkm == null || !pkm.IsOriginValid())
+            if (pkm == null || !pkm.IsOriginValid)
                 return null;
-            if (pkm.GenNumber < 6 && pkm.Format != 1)
+            if (!Parsed)
                 return new int[4];
             return Legal.getValidMoves(pkm, EvoChain, Tutor: tutor, Machine: tm, MoveReminder: reminder).Skip(1).ToArray(); // skip move 0
         }
@@ -259,24 +265,30 @@ namespace PKHeX.Core
             if (pkm == null)
                 return null;
 
+            int loc = getSuggestedTransferLocation(pkm);
             if (pkm.WasEgg)
                 return new EncounterStatic
                 {
                     Species = Legal.getBaseSpecies(pkm),
-                    Location = getSuggestedEggMetLocation(pkm),
+                    Location = loc != -1 ? loc : getSuggestedEggMetLocation(pkm),
                     Level = 1,
                 };
 
-            var capture = Legal.getCaptureLocation(pkm);
-            if (capture != null)
+            var area = Legal.getCaptureLocation(pkm);
+            if (area != null)
+            {
+                var slots = area.Slots.OrderBy(s => s.LevelMin);
                 return new EncounterStatic
                 {
-                    Species = capture.Slots.First().Species,
-                    Location = capture.Location,
-                    Level = capture.Slots.First().LevelMin,
+                    Species = slots.First().Species,
+                    Location = loc != -1 ? loc : area.Location,
+                    Level = slots.First().LevelMin,
                 };
+            }
 
             var encounter = Legal.getStaticLocation(pkm);
+            if (loc != -1)
+                encounter.Location = loc;
             return encounter;
         }
         private static int getSuggestedEggMetLocation(PKM pkm)
@@ -307,6 +319,19 @@ namespace PKHeX.Core
                 case GameVersion.MN:
                     return 50; // Route 4
             }
+            return -1;
+        }
+        private static int getSuggestedTransferLocation(PKM pkm)
+        {
+            // Return one of legal hatch locations for game
+            if (pkm.HasOriginalMetLocation)
+                return -1;
+            if (pkm.VC1)
+                return 30013;
+            if (pkm.Format == 4) // Pal Park
+                return 0x37;
+            if (pkm.Format == 5) // Transporter
+                return 30001;
             return -1;
         }
     }

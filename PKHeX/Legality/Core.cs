@@ -400,26 +400,18 @@ namespace PKHeX.Core
             }
         }
 
-        private static int getMaxSpeciesOrigin(int generation)
+        internal static int getMaxSpeciesOrigin(int generation)
         {
             switch (generation)
             {
-                case 1:
-                    return MaxSpeciesID_1;
-                case 2:
-                    return MaxSpeciesID_2;
-                case 3:
-                    return MaxSpeciesID_3;
-                case 4:
-                    return MaxSpeciesID_4;
-                case 5:
-                    return MaxSpeciesID_5;
-                case 6:
-                    return MaxSpeciesID_6;
-                case 7:
-                    return MaxSpeciesID_7;
-                default:
-                    return MaxSpeciesID_7;
+                case 1: return MaxSpeciesID_1;
+                case 2: return MaxSpeciesID_2;
+                case 3: return MaxSpeciesID_3;
+                case 4: return MaxSpeciesID_4;
+                case 5: return MaxSpeciesID_5;
+                case 6: return MaxSpeciesID_6;
+                case 7: return MaxSpeciesID_7;
+                default: return -1;
             }
         }
 
@@ -637,11 +629,11 @@ namespace PKHeX.Core
                 select new EncounterArea
                 {
                     Location = area.Location, Slots = slots,
-                }).FirstOrDefault();
+                }).OrderBy(area => area.Slots.Min(x => x.LevelMin)).FirstOrDefault();
         }
         internal static EncounterStatic getStaticLocation(PKM pkm)
         {
-            return getStaticEncounters(pkm).FirstOrDefault();
+            return getStaticEncounters(pkm, 100).OrderBy(s => s.Level).FirstOrDefault();
         }
 
         public static int getLowestLevel(PKM pkm, int refSpecies = -1)
@@ -889,7 +881,7 @@ namespace PKHeX.Core
             List<EncounterSlot> slotdata = new List<EncounterSlot>();
 
             // Get Valid levels
-            IEnumerable<DexLevel> vs = getValidPreEvolutions(pkm);
+            IEnumerable<DexLevel> vs = getValidPreEvolutions(pkm, ignoreLevel ? 100 : -1, ignoreLevel);
 
             // Get slots where pokemon can exist
             bool ignoreSlotLevel = ignoreLevel;
@@ -1005,6 +997,9 @@ namespace PKHeX.Core
             foreach (DexLevel evo in vs)
                 r.AddRange(getMoves(pkm, evo.Species, evo.Level, pkm.AltForm, moveTutor, Version, LVL, Tutor, Machine, MoveReminder));
 
+            if (pkm.Format <= 3)
+                return r.Distinct().ToArray();
+
             if (species == 479) // Rotom
                 r.Add(RotomMoves[pkm.AltForm]);
             if (species == 648) // Meloetta
@@ -1015,7 +1010,7 @@ namespace PKHeX.Core
 
             if (species == 718 && pkm.GenNumber == 7) // Zygarde
                 r.AddRange(ZygardeMoves);
-            if (species == 25 || species == 26 && pkm.Format == 7) // Pikachu/Raichu Tutor
+            if ((species == 25 || species == 26) && pkm.Format == 7) // Pikachu/Raichu Tutor
                 r.Add(344); // Volt Tackle
 
             if (Relearn) r.AddRange(pkm.RelearnMoves);
@@ -1025,11 +1020,18 @@ namespace PKHeX.Core
         {
             List<int> r = new List<int> { 0 };
             int gen = pkm.GenNumber;
-            if (pkm.Format < 3)
-                gen = 1;
+            if (pkm.GenNumber < 3)
+            {
+                int max = pkm.Format < 3 ? 2 : 1;
+                for (; gen <= max; gen++)
+                    if (pkm.InhabitedGeneration(gen, species))
+                        r.AddRange(getMoves(pkm, species, lvl, form, moveTutor, Version, LVL, specialTutors, Machine, gen, MoveReminder));
+                gen = 7;
+            }
 
             for (; gen <= pkm.Format; gen++)
-               r.AddRange(getMoves(pkm, species, lvl, form, moveTutor, Version, LVL, specialTutors, Machine, gen, MoveReminder));
+                if (pkm.InhabitedGeneration(gen))
+                    r.AddRange(getMoves(pkm, species, lvl, form, moveTutor, Version, LVL, specialTutors, Machine, gen, MoveReminder));
             return r.Distinct();
         }
         private static IEnumerable<int> getMoves(PKM pkm, int species, int lvl, int form, bool moveTutor, GameVersion Version, bool LVL, bool specialTutors, bool Machine, int Generation, bool MoveReminder)
@@ -1055,6 +1057,8 @@ namespace PKHeX.Core
                             r.AddRange(TMHM_RBY.Where((t, m) => pi_rb.TMHM[m]));
                             r.AddRange(TMHM_RBY.Where((t, m) => pi_y.TMHM[m]));
                         }
+                        if (moveTutor)
+                            r.AddRange(getTutorMoves(pkm, species, form, specialTutors));
                         break;
                     }
                 case 6:
@@ -1113,6 +1117,9 @@ namespace PKHeX.Core
         }
         private static IEnumerable<int> getEggMoves(PKM pkm, int species, int formnum)
         {
+            if (!pkm.InhabitedGeneration(pkm.GenNumber, species))
+                return new List<int>();
+
             switch (pkm.GenNumber)
             {
                 case 6: // entries per species
@@ -1130,15 +1137,14 @@ namespace PKHeX.Core
         }
         private static IEnumerable<int> getTutorMoves(PKM pkm, int species, int form, bool specialTutors)
         {
-            PersonalInfo info = pkm.PersonalInfo;
             List<int> moves = new List<int>();
-
             if (pkm.Format < 3)
             {
                 if (pkm.Species == 25 || pkm.Species == 26) // Surf Pikachu via Stadium
                     moves.Add(57);
                 return moves;
             }
+            PersonalInfo info = pkm.PersonalInfo;
 
             // Type Tutors -- Pledge moves and High BP moves switched places in G7+
             if (pkm.Format <= 6)

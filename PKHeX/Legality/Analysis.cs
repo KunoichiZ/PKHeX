@@ -7,10 +7,10 @@ namespace PKHeX.Core
     public partial class LegalityAnalysis
     {
         private PKM pkm;
-        private DexLevel[] EvoChain;
+        private DexLevel[][] EvoChainsAllGens;
         private readonly List<CheckResult> Parse = new List<CheckResult>();
 
-        private object EncounterMatch;
+        private object EncounterMatch, EncounterOriginal;
         private Type EncounterType;
         private bool EncounterIsMysteryGift => EncounterType.IsSubclassOf(typeof (MysteryGift));
         private string EncounterName => Legal.getEncounterTypeName(pkm, EncounterMatch);
@@ -142,7 +142,7 @@ namespace PKHeX.Core
 
             Encounter = verifyEncounter();
             Parse.Add(Encounter);
-            EvoChain = Legal.getEvolutionChain(pkm, EncounterMatch);
+            EvoChainsAllGens = Legal.getEvolutionChainsAllGens(pkm, EncounterOriginal ?? EncounterMatch);
         }
         private void updateEncounterInfo()
         {
@@ -257,7 +257,7 @@ namespace PKHeX.Core
                 return null;
             if (!Parsed)
                 return new int[4];
-            return Legal.getValidMoves(pkm, EvoChain, Tutor: tutor, Machine: tm, MoveReminder: reminder).Skip(1).ToArray(); // skip move 0
+            return Legal.getValidMoves(pkm, EvoChainsAllGens, Tutor: tutor, Machine: tm, MoveReminder: reminder).Skip(1).ToArray(); // skip move 0
         }
 
         public EncounterStatic getSuggestedMetInfo()

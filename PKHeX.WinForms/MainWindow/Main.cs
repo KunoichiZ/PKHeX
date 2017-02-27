@@ -1714,6 +1714,15 @@ namespace PKHeX.WinForms
             else
                 TB_Friendship.Text = TB_Friendship.Text == "255" ? SAV.Personal[pkm.Species].BaseFriendship.ToString() : "255";
         }
+
+        private void clickLevel(object sender, EventArgs e)
+        {
+            if (ModifierKeys == Keys.Control)
+            {
+                ((MaskedTextBox)sender).Text = "100";
+            }
+        }
+
         private void clickGender(object sender, EventArgs e)
         {
             // Get Gender Threshold
@@ -2292,7 +2301,10 @@ namespace PKHeX.WinForms
                 }
             }
             else if (PKX.getGender(CB_Form.Text) < 2)
-                Label_Gender.Text = CB_Form.Text;
+            {
+                if (CB_Form.Items.Count == 2) // actually M/F; Pumpkaboo formes in German are S,M,L,XL
+                    Label_Gender.Text = gendersymbols[PKX.getGender(CB_Form.Text)];
+            }
 
             if (changingFields) 
                 return;
@@ -2811,6 +2823,8 @@ namespace PKHeX.WinForms
                     pkm.Nature = CB_Nature.SelectedIndex;
                     updateRandomPID(sender, e);
                 }
+                if (sender == CB_HeldItem && SAV.Generation == 7)
+                    updateLegality();
             }
             updateNatureModification(sender, null);
             updateIVs(null, null); // updating Nature will trigger stats to update as well
@@ -2921,7 +2935,7 @@ namespace PKHeX.WinForms
 
         private void updateGender()
         {
-            int cg = Array.IndexOf(gendersymbols, Label_Gender.Text);
+            int cg = PKX.getGender(Label_Gender.Text);
             int gt = SAV.Personal.getFormeEntry(WinFormsUtil.getIndex(CB_Species), CB_Form.SelectedIndex).Gender;
 
             int Gender;
@@ -4121,7 +4135,12 @@ namespace PKHeX.WinForms
                 pb.BackgroundImage = null;
                     
                 if (DragInfo.SameBox && DragInfo.DestinationValid)
-                    SlotPictureBoxes[DragInfo.slotDestinationSlotNumber].Image = img;
+                {
+                    if (SAV.getIsTeamSet(box, DragInfo.slotDestinationSlotNumber) ^ SAV.getIsTeamSet(box, DragInfo.slotSourceSlotNumber))
+                        getQuickFiller(SlotPictureBoxes[DragInfo.slotDestinationSlotNumber], SAV.getStoredSlot(DragInfo.slotDestinationOffset));
+                    else
+                        SlotPictureBoxes[DragInfo.slotDestinationSlotNumber].Image = img;
+                }
 
                 if (result == DragDropEffects.Copy) // viewed in tabs, apply 'view' highlight
                     getSlotColor(DragInfo.slotSourceSlotNumber, Resources.slotView);

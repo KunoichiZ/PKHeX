@@ -11,11 +11,18 @@ namespace PKHeX.Core
         public static MysteryGift[] MGDB_G6, MGDB_G7 = new MysteryGift[0];
 
         // Gen 1
-        private static readonly Learnset[] LevelUpRB = Learnset1.getArray(Resources.lvlmove_rb);
-        private static readonly Learnset[] LevelUpY = Learnset1.getArray(Resources.lvlmove_y);
+        private static readonly Learnset[] LevelUpRB = Learnset1.getArray(Resources.lvlmove_rb, MaxSpeciesID_1);
+        private static readonly Learnset[] LevelUpY = Learnset1.getArray(Resources.lvlmove_y, MaxSpeciesID_1);
         private static readonly EvolutionTree Evolves1;
         private static readonly EncounterArea[] SlotsRBY;
         private static readonly EncounterStatic[] StaticRBY;
+
+        // Gen 2
+        private static readonly Learnset[] LevelUpGS = Learnset1.getArray(Resources.lvlmove_gs, MaxSpeciesID_2);
+        private static readonly Learnset[] LevelUpC = Learnset1.getArray(Resources.lvlmove_c, MaxSpeciesID_2);
+        private static readonly EvolutionTree Evolves2;
+        private static readonly EncounterArea[] SlotsGSC;
+        private static readonly EncounterStatic[] StaticGSC;
 
         // Gen 6
         private static readonly EggMoves[] EggMovesXY = EggMoves6.getArray(Data.unpackMini(Resources.eggmove_xy, "xy"));
@@ -41,6 +48,9 @@ namespace PKHeX.Core
             {
                 case GameVersion.RBY:
                     return Encounter_RBY; // GameVersion filtering not possible, return immediately
+                case GameVersion.GSC:
+                    return Encounter_GSC;
+
                 case GameVersion.X: case GameVersion.Y:
                     table = Encounter_XY;
                     break;
@@ -152,6 +162,17 @@ namespace PKHeX.Core
                 Array.Resize(ref SlotsRBY, SlotsRBY.Length + 1);
                 SlotsRBY[SlotsRBY.Length - 1] = FishOldGood_RBY;
                 StaticRBY = getStaticEncounters(GameVersion.RBY);
+            }
+            // Gen 2
+            {
+                Evolves2 = new EvolutionTree(new[] { Resources.evos_gsc }, GameVersion.GSC, PersonalTable.C, MaxSpeciesID_2);
+
+                var g = EncounterArea.getArray2_GW(Resources.encounter_gold);
+                var s = EncounterArea.getArray2_GW(Resources.encounter_silver);
+                var c = EncounterArea.getArray2_GW(Resources.encounter_crystal);
+                SlotsGSC = addExtraTableSlots(addExtraTableSlots(g, s), c);
+
+                StaticGSC = getStaticEncounters(GameVersion.GSC);
             }
             // Gen 6
             {
@@ -439,6 +460,8 @@ namespace PKHeX.Core
             {
                 case 1:
                     return Evolves1;
+                case 2:
+                    return Evolves2;
 
                 case 6:
                     return Evolves6;
@@ -634,6 +657,30 @@ namespace PKHeX.Core
                 case 5: return FutureEvolutionsGen5;
                 default: return new int[0];
             }
+        }
+
+        internal static bool[] getReleasedHeldItems(int generation)
+        {
+            switch (generation)
+            {
+                case 2: return ReleasedHeldItems_2;
+                case 3: return ReleasedHeldItems_3;
+                case 4: return ReleasedHeldItems_4;
+                case 5: return ReleasedHeldItems_5;
+                case 6: return ReleasedHeldItems_6;
+                case 7: return ReleasedHeldItems_7;
+                default: return new bool[0];
+            }
+        }
+        internal static bool getHeldItemAllowed(int generation, int item)
+        {
+            if (item < 0)
+                return false;
+            if (item == 0)
+                return true;
+
+            var items = getReleasedHeldItems(generation);
+            return items.Length > item && items[item];
         }
 
         internal static bool getDexNavValid(PKM pkm)
@@ -1061,6 +1108,11 @@ namespace PKHeX.Core
                 case GameVersion.GN: case GameVersion.YW:
                     return getSlots(pkm, SlotsRBY, lvl);
 
+                case GameVersion.GSC:
+                case GameVersion.GD: case GameVersion.SV:
+                case GameVersion.C:
+                    return getSlots(pkm, SlotsGSC, lvl);
+
                 case GameVersion.X:
                     return getSlots(pkm, SlotsX, lvl);
                 case GameVersion.Y:
@@ -1085,6 +1137,11 @@ namespace PKHeX.Core
                 case GameVersion.RD: case GameVersion.BU:
                 case GameVersion.GN: case GameVersion.YW:
                     return getStatic(pkm, StaticRBY, lvl);
+
+                case GameVersion.GSC:
+                case GameVersion.GD: case GameVersion.SV:
+                case GameVersion.C:
+                    return getStatic(pkm, StaticGSC, lvl);
 
                 case GameVersion.X:
                     return getStatic(pkm, StaticX, lvl);
@@ -1152,7 +1209,11 @@ namespace PKHeX.Core
             // Pressure Slot
             EncounterSlot slotMax = encounterSlots.OrderByDescending(slot => slot.LevelMax).FirstOrDefault();
             if (slotMax != null)
-                slotMax = new EncounterSlot(slotMax) { Pressure = true, Form = pkm.AltForm };
+            {
+                slotMax = slotMax.Clone();
+                slotMax.Pressure = true;
+                slotMax.Form = pkm.AltForm;
+            };
 
             if (gen >= 6 && !DexNav)
             {
@@ -1176,7 +1237,8 @@ namespace PKHeX.Core
             foreach (EncounterSlot s in eslots)
             {
                 bool nav = s.AllowDexNav && (pkm.RelearnMove1 != 0 || pkm.AbilityNumber == 4);
-                EncounterSlot slot = new EncounterSlot(s) { DexNav = nav };
+                EncounterSlot slot = s.Clone();
+                slot.DexNav = nav;
 
                 if (slot.LevelMin > lvl)
                     slot.WhiteFlute = true;
@@ -1330,6 +1392,23 @@ namespace PKHeX.Core
                         {
                             r.AddRange(TMHM_RBY.Where((t, m) => pi_rb.TMHM[m]));
                             r.AddRange(TMHM_RBY.Where((t, m) => pi_y.TMHM[m]));
+                        }
+                        if (moveTutor)
+                            r.AddRange(getTutorMoves(pkm, species, form, specialTutors));
+                        break;
+                    }
+                case 2:
+                    {
+                        int index = PersonalTable.C.getFormeIndex(species, 0);
+                        var pi_c = (PersonalInfoG1)PersonalTable.C[index];
+                        if (LVL)
+                        {
+                            r.AddRange(LevelUpGS[index].getMoves(lvl));
+                            r.AddRange(LevelUpC[index].getMoves(lvl));
+                        }
+                        if (Machine)
+                        {
+                            r.AddRange(TMHM_GSC.Where((t, m) => pi_c.TMHM[m]));
                         }
                         if (moveTutor)
                             r.AddRange(getTutorMoves(pkm, species, form, specialTutors));

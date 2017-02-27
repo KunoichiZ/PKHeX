@@ -69,6 +69,13 @@ namespace PKHeX.Core
                 // return;
             }
         }
+
+        private void verifyItem()
+        {
+            if (!Legal.getHeldItemAllowed(pkm.Format, pkm.HeldItem))
+                AddLine(Severity.Invalid, "Held item is unreleased.", CheckIdentifier.Form);
+        }
+
         private void verifyECPID()
         {
             if (pkm.EncryptionConstant == 0)
@@ -203,7 +210,8 @@ namespace PKHeX.Core
                     if (et?.TID == 0) // Gen1 Trade
                     {
                         string ot = pkm.OT_Name;
-                        if (ot != "トレーナー" && ot != "TRAINER")
+                        string tr = pkm.Format <= 2 ? "TRAINER" : "Trainer"; // decaps on transfer
+                        if (ot != "トレーナー" && ot != tr)
                             AddLine(Severity.Invalid, "Incorrect OT name for RBY in-game trade.", CheckIdentifier.Trainer);
                     }
                     else // Gen2
@@ -546,6 +554,7 @@ namespace PKHeX.Core
         {
             // Since encounter matching is super weak due to limited stored data in the structure
             // Calculate all 3 at the same time and pick the best result (by species).
+            // Favor special event move gifts as Static Encounters when applicable
             var s = Legal.getValidStaticEncounter(pkm, gen1Encounter: true);
             var e = Legal.getValidWildEncounters(pkm);
             var t = Legal.getValidIngameTrade(pkm, gen1Encounter: true);
@@ -569,14 +578,20 @@ namespace PKHeX.Core
                 EncounterMatch = e;
                 return verifyEncounterWild();
             }
+            if (sm <= em && sm <= tm)
+            {
+                EncounterMatch = s;
+                return verifyEncounterStatic();
+            }
             if (tm <= sm && tm <= em)
             {
                 EncounterMatch = t;
                 return verifyEncounterTrade();
             }
-
-            // else is trade
-            return new CheckResult(Severity.Valid, "Valid ingame trade.", CheckIdentifier.Encounter);
+            
+            // shouldn't ever hit, above 3*invalid check should abort
+            Console.WriteLine($"Gen1 encounter fallthrough: {pkm.FileName}");
+            return new CheckResult(Severity.Invalid, "Unknown encounter.", CheckIdentifier.Encounter);
         }
         private CheckResult verifyEncounter()
         {

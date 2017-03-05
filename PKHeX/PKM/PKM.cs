@@ -387,9 +387,19 @@ namespace PKHeX.Core
             get { return new[] { CNT_Cool, CNT_Beauty, CNT_Cute, CNT_Smart, CNT_Tough, CNT_Sheen }; }
             set { if (value?.Length != 6) return; CNT_Cool = value[0]; CNT_Beauty = value[1]; CNT_Cute = value[2]; CNT_Smart = value[3]; CNT_Tough = value[4]; CNT_Sheen = value[5]; }
         }
+
+        protected static int getHiddenPowerBitVal(int[] ivs)
+        {
+            int sum = 0;
+            for (int i = 0; i < ivs.Length; i++)
+                sum |= (ivs[i] & 1) << i;
+            return sum;
+        }
+        private int HPVal => getHiddenPowerBitVal(new[] {IV_HP, IV_ATK, IV_DEF, IV_SPE, IV_SPA, IV_SPD});
+        public virtual int HPPower => Format < 6 ? 40*HPVal/63 + 30 : 60;
         public virtual int HPType
         {
-            get { return 0xF * ((IV_HP & 1) << 0 | (IV_ATK & 1) << 1 | (IV_DEF & 1) << 2 | (IV_SPE & 1) << 3 | (IV_SPA & 1) << 4 | (IV_SPD & 1) << 5) / 0x3F; }
+            get { return 15*HPVal/63; }
             set
             {
                 IV_HP = (IV_HP & ~1) + PKX.hpivs[value, 0];
@@ -767,11 +777,10 @@ namespace PKHeX.Core
         /// <param name="Destination"><see cref="PKM"/> that receives property values.</param>
         protected void TransferPropertiesWithReflection(PKM Source, PKM Destination)
         {
-            var SourceProperties = ReflectUtil.getPropertiesCanWritePublic(Source.GetType());
-            var DestinationProperties = ReflectUtil.getPropertiesCanWritePublic(Destination.GetType());
-
-            // Skip Data property when applying all individual properties. Let the setters do the updates for Data.
-            foreach (string property in SourceProperties.Intersect(DestinationProperties).Where(prop => prop != nameof(Data)))
+            // Only transfer declared properties not defined in PKM.cs but in the actual type
+            var SourceProperties = ReflectUtil.getPropertiesCanWritePublicDeclared(Source.GetType());
+            var DestinationProperties = ReflectUtil.getPropertiesCanWritePublicDeclared(Destination.GetType());
+            foreach (string property in SourceProperties.Intersect(DestinationProperties))
             {
                 var prop = ReflectUtil.GetValue(this, property);
                 if (prop != null)

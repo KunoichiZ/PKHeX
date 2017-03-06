@@ -1912,7 +1912,7 @@ namespace PKHeX.WinForms
         }
         private void clickMoves(object sender, EventArgs e)
         {
-            updateLegality();
+            updateLegality(skipMoveRepop:true);
             if (sender == GB_CurrentMoves)
             {
                 bool random = ModifierKeys == Keys.Control;
@@ -1969,7 +1969,7 @@ namespace PKHeX.WinForms
                 return;
 
             pkm = preparePKM();
-            updateLegality();
+            updateLegality(skipMoveRepop:true);
             if (Legality.Valid)
                 return;
 
@@ -2950,6 +2950,7 @@ namespace PKHeX.WinForms
                 var index = WinFormsUtil.getIndex(c);
                 c.DataSource = new BindingSource(moveList, null);
                 c.SelectedValue = index;
+                c.SelectionLength = 0; // flicker hack
             }
             fieldsLoaded |= tmp;
         }
@@ -3973,14 +3974,29 @@ namespace PKHeX.WinForms
         }
         private void B_OpenPokedex_Click(object sender, EventArgs e)
         {
-            if (SAV.ORAS)
-                new SAV_PokedexORAS().ShowDialog();
-            else if (SAV.XY)
-                new SAV_PokedexXY().ShowDialog();
-            else if (SAV.RBY || SAV.GSC)
-                new SAV_SimplePokedex().ShowDialog();
-            else if (SAV.SM)
-                new SAV_PokedexSM().ShowDialog();
+            switch (SAV.Generation)
+            {
+                case 1:
+                case 2:
+                    new SAV_SimplePokedex().ShowDialog(); break;
+                case 3:
+                    if (SAV.GameCube)
+                        return;
+                    new SAV_SimplePokedex().ShowDialog(); break;
+                case 5:
+                    new SAV_Pokedex5().ShowDialog();
+                    break;
+                case 6:
+                    if (SAV.ORAS)
+                        new SAV_PokedexORAS().ShowDialog();
+                    else if (SAV.XY)
+                        new SAV_PokedexXY().ShowDialog();
+                    break;
+                case 7:
+                    if (SAV.SM)
+                        new SAV_PokedexSM().ShowDialog();
+                    break;
+            }
         }
         private void B_OUTPasserby_Click(object sender, EventArgs e)
         {

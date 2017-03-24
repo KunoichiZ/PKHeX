@@ -163,10 +163,25 @@ namespace PKHeX.Core
         {
             foreach (EncounterArea g in GameSlots)
             {
-                foreach (var slots in SpecialSlots.Where(l => l.Location == g.Location))
-                    g.Slots = g.Slots.Concat(slots.Slots).ToArray();
+                var tables = SpecialSlots.Where(l => l.Location == g.Location).ToList();
+                if (tables.Any())
+                    g.Slots = g.Slots.Concat(tables.SelectMany(t => t.Slots)).ToArray();
             }
-            return GameSlots;
+            var notInserted = SpecialSlots.Where(s => GameSlots.All(g => g.Location != s.Location));
+            return GameSlots.Concat(notInserted).ToArray();
+        }
+        private static void ReduceAreasSize(ref EncounterArea[] Areas)
+        {
+            // Group areas by location id, the raw data have areas with different slots but the same location id
+            Areas = Areas.GroupBy(a => a.Location).Select(a => new EncounterArea
+            {
+                Location = a.First().Location,
+                Slots = a.SelectMany(m => m.Slots).ToArray()
+            }).ToArray();
+        }
+        private static void MarkG2Slots(ref EncounterArea[] Areas)
+        {
+            ReduceAreasSize(ref Areas);
         }
         private static void MarkG3Slots_FRLG(ref EncounterArea[] Areas)
         {
@@ -180,12 +195,7 @@ namespace PKHeX.Core
         }
         private static void MarkG3Slots_RSE(ref EncounterArea[] Areas)
         {
-            // Group areas by location id, the raw data have areas with different slots but the same location id
-            Areas = Areas.GroupBy(a => a.Location).Select(a => new EncounterArea
-            {
-                Location = a.First().Location,
-                Slots = a.SelectMany(m => m.Slots).ToArray()
-            }).ToArray();
+            ReduceAreasSize(ref Areas);
         }
         private static void MarkG4SwarmSlots(ref EncounterArea[] Areas, EncounterArea[] SwarmAreas)
         {
@@ -206,14 +216,40 @@ namespace PKHeX.Core
                 Area.Slots = Area.Slots.Concat(OutputSlots).Where(a => a.Species > 0).ToArray();
             }
         }
+        // Gen 4 raw encounter data does not contains info for alt slots
+        // Shellos and Gastrodom East Sea form should be modified 
+        private static void MarkG4AltFormSlots(ref EncounterArea[] Areas, int Species, int form, int[] Locations)
+        {
+            foreach(EncounterArea Area in Areas.Where(a => Locations.Contains(a.Location)))
+            {
+                foreach (EncounterSlot Slot in Area.Slots.Where(s=>s.Species == Species))
+                {
+                    Slot.Form = form;
+                }
+            }
+        }
         private static void MarkG4Slots(ref EncounterArea[] Areas)
         {
-            // Group areas by location id, the raw data have areas with different slots but the same location id
-            Areas = Areas.GroupBy(a => a.Location).Select(a => new EncounterArea
+            ReduceAreasSize(ref Areas);
+        }
+        private static void MarkBWSwarmSlots(ref EncounterArea[] Areas)
+        {
+            foreach (EncounterSlot s in Areas.SelectMany(area => area.Slots))
             {
-                Location = a.First().Location,
-                Slots = a.SelectMany(m => m.Slots).ToArray()
-            }).ToArray();
+                s.LevelMin = 15; s.LevelMax = 55; s.Type = SlotType.Swarm;
+            }
+        }
+        private static void MarkB2W2SwarmSlots(ref EncounterArea[] Areas)
+        {
+            foreach (EncounterSlot s in Areas.SelectMany(area => area.Slots))
+            {
+                s.LevelMin = 40; s.LevelMax = 55; s.Type = SlotType.Swarm;
+            }
+        }
+        private static void MarkG5HiddenGrottoSlots(ref EncounterArea[] Areas)
+        {
+            foreach (EncounterSlot s in Areas[0].Slots) //Only 1 area
+                s.Type = SlotType.HiddenGrotto; 
         }
         private static void MarkG5Slots(ref EncounterArea[] Areas)
         {
@@ -245,12 +281,7 @@ namespace PKHeX.Core
                 } while (ctr != area.Slots.Length);
                 area.Slots = area.Slots.Where(slot => slot.Species != 0).ToArray();
             }
-            // Group areas by location id, the raw data have areas with different slots but the same location id
-            Areas = Areas.GroupBy(a => a.Location).Select(a => new EncounterArea
-            {
-                Location = a.First().Location,
-                Slots = a.SelectMany(m => m.Slots).ToArray()
-            }).ToArray();
+            ReduceAreasSize(ref Areas);
         }
         private static void MarkG6XYSlots(ref EncounterArea[] Areas)
         {
@@ -260,6 +291,7 @@ namespace PKHeX.Core
                 for (int i = slotct - 15; i < slotct; i++)
                     area.Slots[i].Type = SlotType.Horde;
             }
+            ReduceAreasSize(ref Areas);
         }
         private static void MarkG6AOSlots(ref EncounterArea[] Areas)
         {
@@ -274,25 +306,31 @@ namespace PKHeX.Core
                 for (int i = 0; i < slotct; i++)
                     area.Slots[i].AllowDexNav = area.Slots[i].Type != SlotType.Rock_Smash;
             }
+            ReduceAreasSize(ref Areas);
+        }
+        private static void MarkG7REGSlots(ref EncounterArea[] Areas)
+        {
+            ReduceAreasSize(ref Areas);
         }
         private static void MarkG7SMSlots(ref EncounterArea[] Areas)
         {
             foreach (EncounterSlot s in Areas.SelectMany(area => area.Slots))
                 s.Type = SlotType.SOS;
+            ReduceAreasSize(ref Areas);
         }
         private static EncounterArea[] getTables1()
         {
-            var red = EncounterArea.getArray1_GW(Resources.encounter_red);
-            var blu = EncounterArea.getArray1_GW(Resources.encounter_blue);
-            var ylw = EncounterArea.getArray1_GW(Resources.encounter_yellow);
+            var red_gw = EncounterArea.getArray1_GW(Resources.encounter_red);
+            var blu_gw = EncounterArea.getArray1_GW(Resources.encounter_blue);
+            var ylw_gw = EncounterArea.getArray1_GW(Resources.encounter_yellow);
             var rb_fish = EncounterArea.getArray1_F(Resources.encounter_rb_f);
             var ylw_fish = EncounterArea.getArray1_FY(Resources.encounter_yellow_f);
 
-            red = addExtraTableSlots(red, rb_fish);
-            blu = addExtraTableSlots(blu, rb_fish);
-            ylw = addExtraTableSlots(ylw, ylw_fish);
+            var red = addExtraTableSlots(red_gw, rb_fish);
+            var blu = addExtraTableSlots(blu_gw, rb_fish);
+            var ylw = addExtraTableSlots(ylw_gw, ylw_fish);
 
-            var table = addExtraTableSlots(addExtraTableSlots(red, blu), ylw);
+            var table = addExtraTableSlots(addExtraTableSlots(red, blu), ylw).ToArray();
             Array.Resize(ref table, table.Length + 1);
             table[table.Length - 1] = FishOldGood_RBY;
 
@@ -303,7 +341,7 @@ namespace PKHeX.Core
             EncounterArea[] Slots = null;
             // Fishing
             var f = EncounterArea.getArray2_F(Resources.encounter_gsc_f);
-            if(Version == GameVersion.GS || Version == GameVersion.GSC)
+            if (Version == GameVersion.GS || Version == GameVersion.GSC)
             {
                 // Grass/Water
                 var g = EncounterArea.getArray2_GW(Resources.encounter_gold);
@@ -321,11 +359,8 @@ namespace PKHeX.Core
                 // Headbutt/Rock Smash
                 var h_c = EncounterArea.getArray2_H(Resources.encounter_crystal_h);
 
-                var SlotsC = addExtraTableSlots(addExtraTableSlots(c, h_c),f);
-                if (Version == GameVersion.C)
-                    Slots = SlotsC;
-                else
-                    Slots = addExtraTableSlots(Slots, SlotsC);
+                var extra = addExtraTableSlots(addExtraTableSlots(c, h_c),f);
+                return Version == GameVersion.C ? extra : addExtraTableSlots(Slots, extra);
             }
 
             return Slots;
@@ -337,6 +372,7 @@ namespace PKHeX.Core
             {
                 StaticRBY = getStaticEncounters(GameVersion.RBY);
                 SlotsRBY = getTables1();
+                // Gen 1 is the only gen where ReduceAreasSize is not needed
                 Evolves1 = new EvolutionTree(new[] { Resources.evos_rby }, GameVersion.RBY, PersonalTable.Y, MaxSpeciesID_1);
             }
             // Gen 2
@@ -347,6 +383,9 @@ namespace PKHeX.Core
                 SlotsGS = getTables2(GameVersion.GS);
                 SlotsC = getTables2(GameVersion.C);
                 SlotsGSC = getTables2(GameVersion.GSC);
+                MarkG2Slots(ref SlotsGS);
+                MarkG2Slots(ref SlotsC);
+                MarkG2Slots(ref SlotsGSC);
                 Evolves2 = new EvolutionTree(new[] { Resources.evos_gsc }, GameVersion.GSC, PersonalTable.C, MaxSpeciesID_2);
             }
             // Gen3
@@ -413,6 +452,13 @@ namespace PKHeX.Core
                 MarkG4SwarmSlots(ref HG_Slots, SlotsHG_Swarm);
                 MarkG4SwarmSlots(ref SS_Slots, SlotsSS_Swarm);
 
+                MarkG4AltFormSlots(ref D_Slots, 422, 1, Shellos_EastSeaLocation_DP);
+                MarkG4AltFormSlots(ref D_Slots, 423, 1, Gastrodon_EastSeaLocation_DP);
+                MarkG4AltFormSlots(ref P_Slots, 422, 1, Shellos_EastSeaLocation_DP);
+                MarkG4AltFormSlots(ref P_Slots, 423, 1, Gastrodon_EastSeaLocation_DP);
+                MarkG4AltFormSlots(ref Pt_Slots, 422, 1, Shellos_EastSeaLocation_Pt);
+                MarkG4AltFormSlots(ref Pt_Slots, 423, 1, Gastrodon_EastSeaLocation_Pt);
+
                 MarkG4Slots(ref D_Slots);
                 MarkG4Slots(ref P_Slots);
                 MarkG4Slots(ref Pt_Slots);
@@ -441,14 +487,25 @@ namespace PKHeX.Core
                 StaticB2 = getStaticEncounters(GameVersion.B2);
                 StaticW2 = getStaticEncounters(GameVersion.W2);
 
-                SlotsB = getEncounterTables(GameVersion.B);
-                SlotsW = getEncounterTables(GameVersion.W);
-                SlotsB2 = getEncounterTables(GameVersion.B2);
-                SlotsW2 = getEncounterTables(GameVersion.W2);
-                MarkG5Slots(ref SlotsB);
-                MarkG5Slots(ref SlotsW);
-                MarkG5Slots(ref SlotsB2);
-                MarkG5Slots(ref SlotsW2);
+                var BSlots = getEncounterTables(GameVersion.B);
+                var WSlots = getEncounterTables(GameVersion.W);
+                MarkG5Slots(ref BSlots);
+                MarkG5Slots(ref WSlots);
+                MarkBWSwarmSlots(ref SlotsB_Swarm);
+                MarkBWSwarmSlots(ref SlotsW_Swarm);
+                SlotsB = addExtraTableSlots(BSlots, SlotsB_Swarm);
+                SlotsW = addExtraTableSlots(WSlots, SlotsW_Swarm);
+
+                var B2Slots = getEncounterTables(GameVersion.B2);
+                var W2Slots = getEncounterTables(GameVersion.W2);
+                MarkG5Slots(ref B2Slots);
+                MarkG5Slots(ref W2Slots);
+                MarkB2W2SwarmSlots(ref SlotsB2_Swarm);
+                MarkB2W2SwarmSlots(ref SlotsW2_Swarm);
+                MarkG5HiddenGrottoSlots(ref SlotsB2_HiddenGrotto);
+                MarkG5HiddenGrottoSlots(ref SlotsW2_HiddenGrotto);
+                SlotsB2 = addExtraTableSlots(B2Slots, SlotsB2_Swarm).Concat(SlotsB2_HiddenGrotto).ToArray();
+                SlotsW2 = addExtraTableSlots(W2Slots, SlotsW2_Swarm).Concat(SlotsW2_HiddenGrotto).ToArray();
 
                 Evolves5 = new EvolutionTree(new[] { Resources.evos_g5 }, GameVersion.BW, PersonalTable.BW, MaxSpeciesID_5);
             }
@@ -481,6 +538,8 @@ namespace PKHeX.Core
                 var REG_MN = getEncounterTables(GameVersion.MN);
                 var SOS_SN = getEncounterTables(Resources.encounter_sn_sos, "sm");
                 var SOS_MN = getEncounterTables(Resources.encounter_mn_sos, "sm");
+                MarkG7REGSlots(ref REG_SN);
+                MarkG7REGSlots(ref REG_MN);
                 MarkG7SMSlots(ref SOS_SN);
                 MarkG7SMSlots(ref SOS_MN);
                 SlotsSN = addExtraTableSlots(REG_SN, SOS_SN).Concat(Encounter_Pelago_SM).Concat(Encounter_Pelago_SN).ToArray();
@@ -1155,7 +1214,7 @@ namespace PKHeX.Core
             var lineage = table.getValidPreEvolutions(pkm, pkm.CurrentLevel);
             return lineage.Select(evolution => evolution.Species);
         }
-        internal static IEnumerable<int> getWildBalls(PKM pkm)
+        internal static int[] getWildBalls(PKM pkm)
         {
             switch (pkm.GenNumber)
             {
@@ -1885,34 +1944,31 @@ namespace PKHeX.Core
             if (pkm.Format != 2)
                 // Gen 2 met location is lost outside gen 2 games
                 return SlotsGSC;
-            else
-            {
-                if (pkm.HasOriginalMetLocation)
-                    // Format 2 with met location, encounter should be from crystal
-                    return SlotsC;
-                else if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
-                    // Format 2 without met location but pokemon could not be tradeback to gen 1, 
-                    // encounter should be from gold or silver
-                    return SlotsGS;
-                else
-                    // Encounter could be any gen 2 game, it can have empty met location for have a g/s origin
-                    // or it can be a crystal pokemon that lost met location after being tradeback to gen 1 games
-                    return SlotsGSC;
-            }
+
+            if (pkm.HasOriginalMetLocation)
+                // Format 2 with met location, encounter should be from crystal
+                return SlotsC;
+
+            if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
+                // Format 2 without met location but pokemon could not be tradeback to gen 1, 
+                // encounter should be from gold or silver
+                return SlotsGS;
+            
+            // Encounter could be any gen 2 game, it can have empty met location for have a g/s origin
+            // or it can be a crystal pokemon that lost met location after being tradeback to gen 1 games
+            return SlotsGSC;
         }
         private static IEnumerable<EncounterStatic> getStaticTableGen2(PKM pkm)
         {
             if (pkm.Format != 2)
                 return StaticGSC;
-            else
-            {
-                if (pkm.HasOriginalMetLocation)
-                    return StaticC;
-                else if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
-                    return StaticGS;
-                else
-                    return StaticGSC;
-            }
+
+            if (pkm.HasOriginalMetLocation)
+                return StaticC;
+            if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
+                return StaticGS;
+
+            return StaticGSC;
         }
 
         private static IEnumerable<EncounterArea> getSlots(PKM pkm, IEnumerable<EncounterArea> tables, int lvl = -1)
@@ -2352,7 +2408,7 @@ namespace PKHeX.Core
                     }
                     break;
                 case 7:
-                    info = PersonalTable.SM[species];
+                    info = PersonalTable.SM.getFormeEntry(species, form);
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
                     // No special tutors in G7
                     break;

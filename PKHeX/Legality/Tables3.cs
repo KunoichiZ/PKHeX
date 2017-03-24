@@ -187,32 +187,10 @@ namespace PKHeX.Core
 
         internal static readonly int[] Roaming_MetLocation_FRLG =
         {
-            // TODO: Check if roaming encounter is possible in route 21
-            101, // Route 1
-            102, // Route 2
-            103, // Route 3
-            104, // Route 4
-            105, // Route 5
-            106, // Route 6
-            107, // Route 7
-            108, // Route 8
-            109, // Route 9
-            110, // Route 10
-            111, // Route 11
-            112, // Route 12
-            113, // Route 13
-            114, // Route 14
-            115, // Route 15
-            116, // Route 16
-            117, // Route 17
-            118, // Route 18
-            // Routes 19 and 20 only have surf encounters
-            121, // Route 21 Grass encounter in water route
-            122, // Route 22
-            123, // Route 23
-            124, // Route 24
-            125, // Route 25
-            // Kanto route 26 does not exits in gen 3
+             //Route 1-25 encounter is possible either in grass or on water
+             101,102,103,104,105,106,107,108,109,110,
+             111,112,113,114,115,116,117,118,119,120,
+             121,122,123,124,125
         };
 
         internal static readonly int[] Roaming_MetLocation_RSE =
@@ -511,7 +489,7 @@ namespace PKHeX.Core
             020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039,
             040, 041, 042, 043, 044, 045, 046, 047, 048, 049, 050, 051, 052, 053, 054, 055, 056, 057, 058, 059,
             060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080,
-            081, 082, 083, 084, 085, 086, 087,
+            081, 082, 083, 085, 086, 087,
         };
         internal static readonly int[] ValidMet_FRLG =
         {

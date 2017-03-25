@@ -251,6 +251,14 @@ namespace PKHeX.Core
             foreach (EncounterSlot s in Areas[0].Slots) //Only 1 area
                 s.Type = SlotType.HiddenGrotto; 
         }
+        private static void MarkG5DreamWorld(ref EncounterStatic[] t)
+        {
+            foreach (EncounterStatic s in t)
+            {
+                s.Location = 75;  //Entree Forest. Location can be a flag from dream world
+                s.Ability = 4;    //What if 1=2=HA?
+            }
+        }
         private static void MarkG5Slots(ref EncounterArea[] Areas)
         {
             foreach (var area in Areas)
@@ -482,10 +490,12 @@ namespace PKHeX.Core
             }
             // Gen 5
             {
-                StaticB = getStaticEncounters(GameVersion.B);
-                StaticW = getStaticEncounters(GameVersion.W);
-                StaticB2 = getStaticEncounters(GameVersion.B2);
-                StaticW2 = getStaticEncounters(GameVersion.W2);
+                MarkG5DreamWorld(ref BW_DreamWorld);
+                MarkG5DreamWorld(ref B2W2_DreamWorld);
+                StaticB = getStaticEncounters(GameVersion.B).Concat(BW_DreamWorld).ToArray();
+                StaticW = getStaticEncounters(GameVersion.W).Concat(BW_DreamWorld).ToArray();
+                StaticB2 = getStaticEncounters(GameVersion.B2).Concat(B2W2_DreamWorld).ToArray();
+                StaticW2 = getStaticEncounters(GameVersion.W2).Concat(B2W2_DreamWorld).ToArray();
 
                 var BSlots = getEncounterTables(GameVersion.B);
                 var WSlots = getEncounterTables(GameVersion.W);
@@ -1014,7 +1024,16 @@ namespace PKHeX.Core
             if (DB == null)
                 return validPCD;
 
-            // todo
+            if (pkm.Species == 490 && (pkm.WasEgg || pkm.IsEgg)) // Manaphy
+            {
+                int loc = pkm.IsEgg ? pkm.Met_Location : pkm.Egg_Location;
+                bool valid = loc == 2001; // Link Trade Egg
+                valid |= loc == 3001 && !pkm.IsShiny; // Ranger & notShiny
+                if (valid)
+                    validPCD.Add(new PGT { Data = { [0] = 7, [8] = 1 } });
+                return validPCD;
+            }
+            
             var vs = getValidPreEvolutions(pkm).ToArray();
             foreach (PCD mg in DB.OfType<PCD>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
             {
@@ -1029,8 +1048,16 @@ namespace PKHeX.Core
                     if (wc.Language != 0 && wc.Language != pkm.Language) continue;
                 }
                 if (wc.AltForm != pkm.AltForm && vs.All(dl => !getCanFormChange(pkm, dl.Species))) continue;
-                if (wc.Met_Location != pkm.Met_Location) continue;
-                if (wc.Egg_Location != pkm.Egg_Location) continue;
+                
+                if (wc.IsEgg)
+                {
+                    if (wc.Egg_Location + 3000 != pkm.Egg_Location) continue;
+                }
+                else
+                {
+                    if (wc.Egg_Location + 3000 != pkm.Met_Location) continue;
+                }
+
                 if (wc.CurrentLevel != pkm.Met_Level) continue;
                 if (wc.Ball != pkm.Ball) continue;
                 if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
@@ -1064,13 +1091,13 @@ namespace PKHeX.Core
             {
                 if (pkm.Egg_Location == 0) // Not Egg
                 {
-                    if (wc.CardID != pkm.SID) continue;
+                    if (wc.SID != pkm.SID) continue;
                     if (wc.TID != pkm.TID) continue;
                     if (wc.OT != pkm.OT_Name) continue;
                     if (wc.OTGender != pkm.OT_Gender) continue;
-                    if (wc.PIDType == 0 && pkm.PID != wc.PID) continue;
+                    if (wc.PID != 0 && pkm.PID != wc.PID) continue;
+                    if (wc.PIDType == 0 && pkm.IsShiny) continue;
                     if (wc.PIDType == 2 && !pkm.IsShiny) continue;
-                    if (wc.PIDType == 3 && pkm.IsShiny) continue;
                     if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) continue;
                     if (wc.Language != 0 && wc.Language != pkm.Language) continue;
                 }

@@ -19,6 +19,13 @@ namespace PKHeX.Core
                     return Moves.Take(i).ToArray();
             return Moves;
         }
+
+        public int[] getMoves(int minLevel, int maxLevel)
+        {
+            return Moves
+                .SkipWhile((m, i) => Levels[i] < minLevel)
+                .TakeWhile((m, i) => Levels[i] <= maxLevel).ToArray();
+        }
     }
 
     public class Learnset1 : Learnset

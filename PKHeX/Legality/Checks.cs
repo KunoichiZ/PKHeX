@@ -901,15 +901,30 @@ namespace PKHeX.Core
                            : new CheckResult(Severity.Invalid, V80, CheckIdentifier.Encounter);
 
             // Transfer Legality
-            var CrownLocation = -1;
-            var AllowCrownLocation = pkm.Gen4 && pkm.FatefulEncounter && Legal.CrownBeasts.Contains(pkm.Species);
-            if (AllowCrownLocation)
-                CrownLocation = pkm.Species == 251 ? 30010 : 30012; // Celebi : Beast
 
-            if (pkm.Met_Location != 30001 && (!AllowCrownLocation || pkm.Met_Location != CrownLocation))
-                AddLine(Severity.Invalid, AllowCrownLocation ? V351 : V61, CheckIdentifier.Encounter);
+            // PokéTransfer
+            int loc = pkm.Met_Location;
+            if (loc == 30001)
+                return Gen4Result;
 
-            return Gen4Result;
+            // Crown
+            switch (pkm.Species)
+            {
+                case 251: // Celebi
+                    if (pkm.Met_Location == 30010 || pkm.Met_Location == 30011) // unused || used
+                        return Gen4Result;
+                    return new CheckResult(Severity.Invalid, V351, CheckIdentifier.Encounter);
+                    
+                case 243: // Raikou
+                case 244: // Entei
+                case 245: // Suicune
+                    if (pkm.Met_Location == 30012 || pkm.Met_Location == 30013) // unused || used
+                        return Gen4Result;
+                    return new CheckResult(Severity.Invalid, V351, CheckIdentifier.Encounter);
+            }
+
+            // No Match
+            return new CheckResult(Severity.Invalid, V61, CheckIdentifier.Encounter);
         }
         private CheckResult verifyVCEncounter(int baseSpecies)
         {
@@ -1698,7 +1713,22 @@ namespace PKHeX.Core
 
                 return new CheckResult(Severity.Valid, V145, CheckIdentifier.History);
             }
-            if (!pkm.WasEvent && !(pkm.WasLink && (EncounterMatch as EncounterLink)?.OT == false) && (pkm.HT_Name.Length == 0 || pkm.Geo1_Country == 0)) // Is not Traded
+
+            // Determine if we should check for Handling Trainer Memories
+            // A Pokémon is untraded if...
+            bool untraded = pkm.HT_Name.Length == 0 || pkm.Geo1_Country == 0;
+            if (EncounterIsMysteryGift)
+            {
+                untraded |= !pkm.WasEventEgg;
+                untraded &= pkm.WasEgg;
+            }
+
+            if (pkm.WasLink && (EncounterMatch as EncounterLink)?.OT == false)
+                untraded = false;
+            else if (pkm.GenNumber < 6)
+                untraded = false;
+
+            if (untraded) // Is not Traded
             {
                 if (pkm.HT_Name.Length != 0)
                     return new CheckResult(Severity.Invalid, V146, CheckIdentifier.History);

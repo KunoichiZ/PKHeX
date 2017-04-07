@@ -112,7 +112,6 @@ namespace PKHeX.Core
             verifyNickname();
             verifyDVs();
             verifyG1OT();
-            AddLine(verifyEggMoves());
         }
         private void parsePK3(PKM pk)
         {
@@ -124,7 +123,6 @@ namespace PKHeX.Core
             updateMoveLegality();
             updateEncounterInfo();
             updateChecks();
-            AddLine(verifyEggMoves());
         }
         private void parsePK4(PKM pk)
         {
@@ -137,7 +135,6 @@ namespace PKHeX.Core
             updateMoveLegality();
             updateEncounterInfo();
             updateChecks();
-            AddLine(verifyEggMoves());
         }
         private void parsePK5(PKM pk)
         {
@@ -150,7 +147,6 @@ namespace PKHeX.Core
             updateMoveLegality();
             updateEncounterInfo();
             updateChecks();
-            AddLine(verifyEggMoves());
         }
         private void parsePK6(PKM pk)
         {
@@ -234,8 +230,6 @@ namespace PKHeX.Core
                 verifyRegion();
                 verifyVersionEvolution();
             }
-            if (pkm.GenNumber <= 5)
-                verifyEggMoves();
 
             // SecondaryChecked = true;
         }
@@ -306,6 +300,7 @@ namespace PKHeX.Core
 
             List<int> window = new List<int>(RelearnBase);
             window.AddRange(pkm.Moves.Where((v, i) => !vMoves[i].Valid || vMoves[i].Flag));
+            window = window.Distinct().ToList();
             if (window.Count < 4)
                 window.AddRange(new int[4 - window.Count]);
             return window.Skip(window.Count - 4).ToArray();

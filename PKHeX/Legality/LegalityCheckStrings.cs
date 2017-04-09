@@ -58,15 +58,13 @@ namespace PKHeX.Core
         public static string V349 { get; set; } = "Inherited TM/HM move.";
         public static string V355 { get; set; } = "Learned by evolving Nincada into Ninjask.";
         public static string V356 { get; set; } = "Learned by evolving Nincada into Ninjask in generation {0}.";
+        public static string V361 { get; set; } = "Default move.";
+        public static string V362 { get; set; } = "Default move in generation {0}.";
 
         #endregion
 
         #region Legality Check Result Strings
 
-        public static string V250 {get; set;} = "Gender matches PID.";
-        public static string V251 {get; set;} = "PID-Gender mismatch.";
-        public static string V252 {get; set;} = "Nature matches PID.";
-        public static string V253 {get; set;} = "PID-Nature mismatch.";
         public static string V203 {get; set;} = "Genderless Pokémon should not have a gender.";
         public static string V201 {get; set;} = "Encryption Constant is not set.";
         public static string V204 {get; set;} = "Held item is unreleased.";
@@ -75,6 +73,10 @@ namespace PKHeX.Core
         public static string V188 {get; set;} = "Fateful Encounter with no matching Encounter. Has the Mystery Gift data been contributed?";
         public static string V194 { get; set;} = "Ingame Trade for Sun/Moon not implemented."; // Valid
 
+        public static string V250 {get; set;} = "Gender matches PID.";
+        public static string V251 {get; set;} = "PID-Gender mismatch.";
+        public static string V252 {get; set;} = "Nature matches PID.";
+        public static string V253 {get; set;} = "PID-Nature mismatch.";
         public static string V207 {get; set;} = "PID is not set.";
         public static string V208 {get; set;} = "Encryption Constant matches PID.";
         public static string V209 {get; set;} = "Static Encounter shiny mismatch.";
@@ -351,6 +353,9 @@ namespace PKHeX.Core
         public static string V358 {get; set;} = "Inherited move learned by Level-up. Incompatible with event egg moves.";
         public static string V359 {get; set;} = "Unable to match a gift egg encounter from origin game.";
         public static string V360 {get; set;} = "Unable to match an event egg encounter from origin game.";
+        public static string V363 {get; set;} = "Incompatible moves. Learned at the same level in Red/Blue and Yellow.";
+        public static string V365 {get; set;} = "Incompatible evolution moves. {0} Move learned at a lower level than other {1} moves.";
+        public static string V366 {get; set;} = "Incompatible evolution moves. {1} Move learned at a higher level than other {0} moves.";
         #endregion
 
     }

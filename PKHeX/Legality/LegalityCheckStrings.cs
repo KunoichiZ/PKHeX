@@ -110,6 +110,7 @@ namespace PKHeX.Core
         public static string V9 {get; set;} = "Ingame Trade Nickname has been altered."; // Fishy
         public static string V15 {get; set;} = "Nickname matches another species name (+language)."; // Fishy
         public static string V16 {get; set;} = "Nickname flagged, matches species name."; // Fishy
+        public static string V0 {get; set;} = "Event gift has been nicknamed."; // Fishy
 
         public static string V21 {get; set;} = "Matches: {0} {1}"; // Valid
 
@@ -216,6 +217,7 @@ namespace PKHeX.Core
 
         public static string V107 {get; set;} = "Ability is not valid for species/form.";
         public static string V108 {get; set;} = "Hidden Ability mismatch for encounter type.";
+        public static string V223 {get; set;} = "Ability mismatch for encounter.";
         public static string V109 {get; set;} = "Ability modified with Ability Capsule.";
         public static string V110 {get; set;} = "Ability does not match Mystery Gift.";
         public static string V111 {get; set;} = "Hidden Ability on non-SOS wild encounter.";
@@ -339,10 +341,10 @@ namespace PKHeX.Core
         public static string V338 {get; set;} = "Defog and whirpool. One of the two moves should have been removed before transfered to generation 5.";
         public static string V339 {get; set;} = "Generation {0} HM. Should have been removed before transfered to generation {1}.";
         public static string V340 {get; set;} = "Not an expected egg move.";
-        public static string V341 {get; set;} = "Egg Move.Not expected in an event egg.";
+        public static string V341 {get; set;} = "Egg Move. Not expected in an event egg.";
         public static string V342 {get; set;} = "Event egg move missing.";
-        public static string V343 {get; set;} = "Expected the following Moves: { 0}";
-        public static string V347 {get; set;} = "Inherited move learned by Level-up.Not expected in an event egg.";
+        public static string V343 {get; set;} = "Expected the following Moves: {0}";
+        public static string V347 {get; set;} = "Inherited move learned by Level-up. Not expected in an event egg.";
         public static string V348 {get; set;} = "Inherited tutor move. Not expected in an event egg.";
         public static string V350 {get; set;} = "Inherited TM/HM move. Not expected in an event egg.";
         public static string V351 {get; set;} = "Invalid Met Location, expected Transporter or Crown."; // Invalid

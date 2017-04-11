@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using PKHeX.Core.Properties;
+using System.Globalization;
+using static PKHeX.Core.LegalityCheckStrings;
 
 namespace PKHeX.Core
 {
@@ -12,6 +14,12 @@ namespace PKHeX.Core
 
         /// <summary>Setting to specify if an analysis should permit data sourced from the physical cartridge era of GameBoy games.</summary>
         public static bool AllowGBCartEra = false;
+
+        /// <summary>Setting to specify if the e-berry index item is an eningma berry or a e-reader berry and the name of the e-reader berry</summary>
+        public static bool EReaderBerryIsEnigma = true;
+        public static string EReaderBerryName = string.Empty;
+        public static string EReaderBerryDisplayName => string.Format(V372, CultureInfo.CurrentCulture.TextInfo.ToTitleCase(EReaderBerryName.ToLower()));
+        public static bool SavegameJapanese = false;
 
         // Gen 1
         private static readonly Learnset[] LevelUpRB = Learnset1.getArray(Resources.lvlmove_rb, MaxSpeciesID_1);
@@ -1046,7 +1054,8 @@ namespace PKHeX.Core
         internal static IEnumerable<EncounterStatic> getG3SpecialEggEncounter(PKM pkm)
         {
             IEnumerable<DexLevel> dl = getValidPreEvolutions(pkm,MaxSpeciesID_3);
-            var table = EventEgg_G3.Where(e => dl.Any(d => d.Species == e.Species));
+            var sttctable = pkm.E ? EventEgg_G3_Common : pkm.FRLG ? EventEgg_FRLG : EventEgg_RS;
+            var table = sttctable.Where(e => dl.Any(d => d.Species == e.Species));
             foreach (EncounterStatic e in table)
             {
                 if (pkm.Moves.All(m => !e.Moves.Contains(m)))  // No special move
@@ -1394,7 +1403,7 @@ namespace PKHeX.Core
             // Example: a level 7 caterpie evolved into metapod will have 3 learned moves, a captured metapod will have only 1 move
             if (010 == species || species == 011)
             {
-                if (species == 11 && !moves.Any(m => G1MetapodMoves.Contains(m))) // Captured as Metapod without Caterpie moves
+                if (!moves.Any(m => G1MetapodMoves.Contains(m))) // Captured as Metapod without Caterpie moves
                     return initialmoves.Union(learn[1]).Distinct().Count(lm => lm != 0 && !G1MetapodMoves.Contains(lm));
             }
             if (species == 014 || species == 015)
@@ -1423,7 +1432,6 @@ namespace PKHeX.Core
                 case 093:
                 case 094: return level < 29 && !moves.Contains(095); // Haunter/Gengar without Hypnosis
                 case 110: return level < 39 && !moves.Contains(108); // Weezing without Smoke Screen
-                case 130: return level < 32; // Wild Gyarados from yellow do not learn splash, evolved gyarados do not learn tackle
             }
             return false;
         }
@@ -1466,6 +1474,8 @@ namespace PKHeX.Core
                 if (!moves.Contains(3)) // Yellow Lvl 12 and Initial Red/Blue Double Slap
                     usedslots--;
             }
+            if (pk.Species == 130 && pk.CurrentLevel < 32) // Wild Gyarados from yellow do not learn splash, evolved gyarados do not learn tackle 
+                usedslots--;
             if (pk.Species == 127 && pk.CurrentLevel >= 21 && !moves.Contains(20)) // Pinsir Yellow Bind
                 usedslots--;
             return usedslots;

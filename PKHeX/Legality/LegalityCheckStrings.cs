@@ -60,6 +60,7 @@ namespace PKHeX.Core
         public static string V356 { get; set; } = "Learned by evolving Nincada into Ninjask in generation {0}.";
         public static string V361 { get; set; } = "Default move.";
         public static string V362 { get; set; } = "Default move in generation {0}.";
+        public static string V372 { get; set; } = "{0} Berry";
 
         #endregion
 
@@ -83,8 +84,6 @@ namespace PKHeX.Core
         public static string V210 {get; set;} = "Wurmple evolution Encryption Constant mismatch.";
         public static string V211 {get; set;} = "Encryption Constant matches shinyxored PID.";
         public static string V212 {get; set;} = "Wurmple Evolution: {0}";
-        public static string V213 {get; set;} = "Silcoon";
-        public static string V214 {get; set;} = "Cascoon";
         public static string V215 {get; set;} = "PID should be equal to EC [with top bit flipped]!";
         public static string V216 {get; set;} = "PID should be equal to EC!";
         public static string V220 {get; set;} = "N's Pokemon cannot be shiny.";
@@ -358,6 +357,11 @@ namespace PKHeX.Core
         public static string V363 {get; set;} = "Incompatible moves. Learned at the same level in Red/Blue and Yellow.";
         public static string V365 {get; set;} = "Incompatible evolution moves. {0} Move learned at a lower level than other {1} moves.";
         public static string V366 {get; set;} = "Incompatible evolution moves. {1} Move learned at a higher level than other {0} moves.";
+        public static string V367 {get; set;} = "Individual EV for a level 100 encounter in generation 4 cannot be greater than 100.";
+        public static string V368 {get; set;} = "Eggs can not be infected with Pokérus."; // Invalid
+        public static string V369 {get; set;} = "Invalid E-Reader Berry.";
+        public static string V370 {get; set;} = "Japanese E-Reader Berry in international savegame.";
+        public static string V371 {get; set;} = "American E-Reader Berry in Japanese savegame.";
         #endregion
 
     }

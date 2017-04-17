@@ -1149,6 +1149,7 @@ namespace PKHeX.WinForms
                 B_OpenMiscEditor.Enabled = SAV is SAV3 || SAV.DP;
 
                 B_OpenHoneyTreeEditor.Enabled = SAV.DP || SAV.Pt;
+                B_OpenRTCEditor.Enabled = SAV.RS || SAV.E;
             }
             GB_SAVtools.Visible = (path != null) && FLP_SAVtools.Controls.Cast<Control>().Any(c => c.Enabled);
             foreach (Control c in FLP_SAVtools.Controls.Cast<Control>())
@@ -2414,12 +2415,6 @@ namespace PKHeX.WinForms
         {
             if (pkm.Format < 6)
                 return;
-            pkm.Version = WinFormsUtil.getIndex(CB_GameOrigin);
-            if (pkm.GenNumber < 6)
-            {
-                TB_EC.Text = TB_PID.Text;
-                WinFormsUtil.Alert("EC should match PID.");
-            }
             
             int wIndex = Array.IndexOf(Legal.WurmpleEvolutions, WinFormsUtil.getIndex(CB_Species));
             if (wIndex < 0)
@@ -2429,9 +2424,24 @@ namespace PKHeX.WinForms
             else
             {
                 uint EC;
-                do { EC = Util.rnd32(); } while ((EC >> 16)%10/5 != wIndex/2);
+                bool valid;
+                do
+                {
+                    EC = Util.rnd32();
+                    uint evoVal;
+                    switch (pkm.GenNumber)
+                    {
+                        case 3: evoVal = pkm.PID & 0xFFFF; break;
+                        case 4:
+                        case 5: evoVal = pkm.PID >> 16; break;
+                        default: evoVal = pkm.EncryptionConstant >> 16; break;
+                    }
+                    evoVal = evoVal%10/5;
+                    valid = evoVal == wIndex/2;
+                } while (!valid);
                 TB_EC.Text = EC.ToString("X8");
             }
+            updateLegality();
         }
         private void updateHackedStats(object sender, EventArgs e)
         {
@@ -3304,13 +3314,16 @@ namespace PKHeX.WinForms
             e.Effect = DragDropEffects.Move;
         }
         // Dragout Display
-        private void dragoutHover(object sender, EventArgs e)
+        private void dragoutEnter(object sender, EventArgs e)
         {
             dragout.BackgroundImage = WinFormsUtil.getIndex(CB_Species) > 0 ? Resources.slotSet : Resources.slotDel;
+            Cursor = Cursors.Hand;
         }
         private void dragoutLeave(object sender, EventArgs e)
         {
             dragout.BackgroundImage = Resources.slotTrans;
+            if (Cursor == Cursors.Hand)
+                Cursor = Cursors.Default;
         }
         private void dragoutDrop(object sender, DragEventArgs e)
         {
@@ -4199,6 +4212,14 @@ namespace PKHeX.WinForms
                     new SAV_Misc4().ShowDialog(); break;
             }
         }
+        private void B_OpenRTCEditor_Click(object sender, EventArgs e)
+        {
+            switch (SAV.Generation)
+            {
+                case 3:
+                    new SAV_RTC3().ShowDialog(); break;
+            }
+        }
         private void B_OpenHoneyTreeEditor_Click(object sender, EventArgs e)
         {
             switch (SAV.Version)
@@ -4304,6 +4325,25 @@ namespace PKHeX.WinForms
         }
 
         // Drag and drop related functions
+        private static Image OriginalBackground;
+        private static Image CurrentBackground;
+        private void pbBoxSlot_MouseEnter(object sender, EventArgs e)
+        {
+            var pb = (PictureBox) sender;
+            if (pb.Image == null)
+                return;
+            OriginalBackground = pb.BackgroundImage;
+            pb.BackgroundImage = CurrentBackground = Resources.slotHover;
+            Cursor = Cursors.Hand;
+        }
+        private void pbBoxSlot_MouseLeave(object sender, EventArgs e)
+        {
+            var pb = (PictureBox)sender;
+            if (pb.BackgroundImage != CurrentBackground)
+                return;
+            pb.BackgroundImage = OriginalBackground;
+            Cursor = Cursors.Default;
+        }
         private void pbBoxSlot_MouseClick(object sender, MouseEventArgs e)
         {
             if (!DragInfo.slotDragDropInProgress)

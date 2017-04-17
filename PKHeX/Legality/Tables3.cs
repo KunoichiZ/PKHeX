@@ -436,7 +436,7 @@ namespace PKHeX.Core
             new EncounterTrade { Species = 108, Ability = 1, TID = 01239, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {24,19,21,15,23,21}, Nature = Nature.Relaxed, Contest = TradeContest_Tough, }, // Lickitung  * 
             new EncounterTrade { Species = 124, Ability = 1, TID = 36728, SID = 00000, OTGender = 0, Gender = 1, IVs = new[] {18,17,18,22,25,21}, Nature = Nature.Mild, Contest = TradeContest_Beauty, }, // Jynx
             new EncounterTrade { Species = 083, Ability = 1, TID = 08810, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {20,25,21,24,15,20}, Nature = Nature.Adamant, Contest = TradeContest_Cool, }, // Farfetch'd
-            new EncounterTrade { Species = 101, Ability = 1, TID = 50298, SID = 00000, OTGender = 0, Gender = 2, IVs = new[] {19,16,18,25,25,19}, Nature = Nature.Hasty, Contest = TradeContest_Cool, }, // Electrode
+            new EncounterTrade { Species = 101, Ability = 2, TID = 50298, SID = 00000, OTGender = 0, Gender = 2, IVs = new[] {19,16,18,25,25,19}, Nature = Nature.Hasty, Contest = TradeContest_Cool, }, // Electrode
             new EncounterTrade { Species = 114, Ability = 1, TID = 60042, SID = 00000, OTGender = 1, Gender = 0, IVs = new[] {22,17,25,16,23,20}, Nature = Nature.Sassy, Contest = TradeContest_Cute, }, // Tangela
             new EncounterTrade { Species = 086, Ability = 1, TID = 09853, SID = 00000, OTGender = 0, Gender = 0, IVs = new[] {24,15,22,16,23,22}, Nature = Nature.Bold, Contest = TradeContest_Tough, }, // Seel *
             //  If Pokémon with * is evolved in a Generation IV or V game, its Ability will become its second Ability.
@@ -610,14 +610,16 @@ namespace PKHeX.Core
             060, 061, 062, 063, 065, 066, 067, 068, 069, 070, 071, 072, 073, 074, 075, 076, 077, 078, 079, 080,
             081, 082, 083, 085, 086, 087,
         };
+        // 155 - 158 Sevii Isle 6-9 Unused
+        // 171 - 173 Sevii Isle 22-24 Unused
         internal static readonly int[] ValidMet_FRLG =
         {
             087, 088, 089, 090, 091, 092, 093, 094, 095, 096, 097, 098, 099,
             100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119,
             120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139,
-            140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159,
-            160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179,
-            180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196
+            140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 159, 160, 161, 162, 163,
+            164, 165, 166, 167, 168, 169, 170, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186,
+            187, 188, 189, 190, 191, 192, 193, 194, 195, 196
         };
         internal static readonly int[] ValidMet_E = ValidMet_RS.Concat(new[]
         {

@@ -958,7 +958,7 @@ namespace PKHeX.Core
         }
         internal static IEnumerable<int> getBaseEggMoves(PKM pkm, int skipOption, GameVersion gameSource, int lvl)
         {
-            int species = getBaseSpecies(pkm, skipOption);
+            int species = getBaseEggSpecies(pkm, skipOption);
 
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion) pkm.Version;
@@ -1045,11 +1045,61 @@ namespace PKHeX.Core
                         return LevelUpSM[index].getMoves(lvl);
                     break;
             }
-            return null;
+            return new int[0];
+        }
+        internal static List<int>[] getExclusiveEvolutionMoves(PKM pkm, int Species,DexLevel[][] evoChains, GameVersion Version)
+        {
+            // Return moves that the pokemon could only learn throught the preevolution Species
+            List<int>[] Moves = new List<int>[evoChains.Length];
+            for (int i = 1; i < evoChains.Length; i++)
+                if (evoChains[i].Any())
+                    Moves[i] = getExclusiveEvolutionMoves(pkm, Species, evoChains[i], i, Version).ToList();
+                else
+                    Moves[i] = new List<int>();
+            return Moves;
+        }
+        internal static IEnumerable<int> getExclusiveEvolutionMoves(PKM pkm, int Species, DexLevel[] evoChain, int Generation, GameVersion Version)
+        {
+            var preevomoves = new List<int>();
+            var evomoves = new List<int>();
+            var index = Array.FindIndex(evoChain, e => e.Species == Species);
+            for (int i = 0; i < evoChain.Length; i++)
+            {
+                var evo = evoChain[i];
+                var moves = getMoves(pkm, evo.Species, 1, evo.Level, pkm.AltForm, moveTutor: true, Version: Version, LVL: true, specialTutors: true, Machine: true, MoveReminder: false, RemoveTransferHM: false, Generation: Generation);
+                if (i >= index)
+                    // Moves from Species or any species bellow in the evolution phase
+                    preevomoves.AddRange(moves);
+                else
+                    // Moves in phase evolutions after the limit species, this moves should be removed
+                    evomoves.AddRange(moves);
+            }
+            preevomoves.RemoveAll(x => evomoves.Contains(x));
+            return preevomoves.Distinct().ToList();
+        }
+        internal static List<int>[] getBaseEggMoves(PKM pkm, GameVersion gameSource, int lvl)
+        {
+            if (SplitBreed.Contains(pkm.Species))
+                return new[]
+                {
+                     getBaseEggMoves(pkm, 0, gameSource,lvl).ToList(),
+                     getBaseEggMoves(pkm, 1, gameSource,lvl).ToList(),
+                };
+            return new[] { getBaseEggMoves(pkm, 0, gameSource, lvl).ToList(), };
+        }
+        internal static List<int>[] getEggMoves(PKM pkm, GameVersion Version)
+        {
+            if (SplitBreed.Contains(pkm.Species))
+                return new[]
+                {
+                     getEggMoves(pkm, getBaseEggSpecies(pkm, 0), 0, Version).ToList(),
+                     getEggMoves(pkm, getBaseEggSpecies(pkm, 1), 0, Version).ToList()
+                };
+            return new[] { getEggMoves(pkm, getBaseEggSpecies(pkm, 0), 0, Version).ToList() };
         }
         internal static IEnumerable<int> getEggMoves(PKM pkm, int skipOption, GameVersion Version)
         {
-            return getEggMoves(pkm, getBaseSpecies(pkm, skipOption), 0, Version);
+            return getEggMoves(pkm, getBaseEggSpecies(pkm, skipOption), 0, Version);
         }
         internal static IEnumerable<EncounterStatic> getG3SpecialEggEncounter(PKM pkm)
         {
@@ -1098,10 +1148,10 @@ namespace PKHeX.Core
             foreach (var area in getEncounterAreas(pkm, gameSource))
                 s.AddRange(getValidEncounterSlots(pkm, area, DexNav: pkm.AO, gameSource: gameSource));
 
-            if (s.Count <= 1 || 3 > pkm.GenNumber || pkm.GenNumber > 4 || pkm.HasOriginalMetLocation)
+            if (s.Count <= 1 || 3 > pkm.GenNumber || pkm.GenNumber > 4 || (pkm.Gen3 && pkm.HasOriginalMetLocation))
                 return s.Any() ? s.ToArray() : null;
 
-            // If has original met location or there is only one possible slot does not check safari zone nor BCC
+            // If has original met location or there is only one possible slot does not check safari zone
             // defer to ball legality
             var IsSafariBall = pkm.Ball == 5;
             var s_Safari = IsSafariBall
@@ -1114,6 +1164,8 @@ namespace PKHeX.Core
             if (s.Count <= 1 || pkm.GenNumber != 4)
                 return s.Any() ? s.ToArray() : null;
 
+            // BCC should be checked even if the pokemon have original met location, there are encounters of the same species
+            // in the national park as both normal wild encounters and contest encounters
             var IsSportsBall = pkm.Ball == 0x18;
             var s_BugContest = IsSportsBall
                 ? s.Where(slot => slot.Type == SlotType.BugContest).ToList()
@@ -1606,7 +1658,7 @@ namespace PKHeX.Core
                 if (t != null && t.TID != 0)
                     return new GBEncounterData(pkm, 2, t); // gen2 trade
                 if (WasEgg && new[] { sm, em, tm }.Min(a => a) >= 5)
-                    return new GBEncounterData(getBaseSpecies(pkm, maxSpeciesOrigin: MaxSpeciesID_2)); // gen2 egg
+                    return new GBEncounterData(getBaseEggSpecies(pkm)); // gen2 egg
             }
             if (em <= sm && em <= tm)
                 return new GBEncounterData(pkm, gen, e.Where(slot => slot.Species == em).OrderBy(slot => slot.LevelMin).First());
@@ -1697,7 +1749,11 @@ namespace PKHeX.Core
         // Generation Specific Fetching
         private static EvolutionTree getEvolutionTable(PKM pkm)
         {
-            switch (pkm.Format)
+            return getEvolutionTable(pkm.Format);
+        }
+        private static EvolutionTree getEvolutionTable(int generation)
+        {
+            switch (generation)
             {
                 case 1:
                     return Evolves1;
@@ -2283,15 +2339,21 @@ namespace PKHeX.Core
                 return true;
             return getValidMoves(pkm, version, getValidPreEvolutions(pkm).ToArray(), generation, LVL: true, Relearn: true, Tutor: true, Machine: true).Contains(move);
         }
-
-        internal static int getBaseSpecies(PKM pkm, int skipOption = 0, int maxSpeciesOrigin = -1)
+        internal static int getBaseEggSpecies(PKM pkm, int skipOption = 0)
+        {
+            if (pkm.Format == 1)
+                return getBaseSpecies(pkm, skipOption : skipOption, generation : 2);
+            return getBaseSpecies(pkm, skipOption);
+        }
+        internal static int getBaseSpecies(PKM pkm, int skipOption = 0, int generation = -1)
         {
             if (pkm.Species == 292)
                 return 290;
             if (pkm.Species == 242 && pkm.CurrentLevel < 3) // Never Cleffa
                 return 113;
 
-            var table = getEvolutionTable(pkm);
+            var table = generation != -1 ? getEvolutionTable(generation): getEvolutionTable(pkm);
+            int maxSpeciesOrigin = generation != -1 ? getMaxSpeciesOrigin(generation) : - 1;
             var evos = table.getValidPreEvolutions(pkm, 100, maxSpeciesOrigin: maxSpeciesOrigin, skipChecks:true).ToArray();
 
             switch (skipOption)
@@ -2350,7 +2412,7 @@ namespace PKHeX.Core
             if (pkm.Format <= 2)
                 return 2;
             
-            if (!pkm.HasOriginalMetLocation)
+            if (!pkm.HasOriginalMetLocation && generation != pkm.GenNumber)
                 return pkm.Met_Level;
 
             if (pkm.GenNumber <= 3)
@@ -2392,7 +2454,7 @@ namespace PKHeX.Core
                     continue;
                 if ((pkm.Gen2 || pkm.VC2) && 3 <= gen && gen <= 6)
                     continue;
-                if (!pkm.HasOriginalMetLocation && pkm.Format > 2 && gen <= 4 && lvl > pkm.Met_Level)
+                if (!pkm.HasOriginalMetLocation && pkm.Format > 2 && gen < pkm.Format && gen <= 4 && lvl > pkm.Met_Level)
                 {
                     // Met location was lost at this point but it also means the pokemon existed in generations 1 to 4 with maximum level equals to met level
                     lvl = pkm.Met_Level;
@@ -2430,7 +2492,7 @@ namespace PKHeX.Core
                     //Remove previous evolutions bellow transfer level
                     //For example a gen3 charizar in format 7 with current level 36 and met level 36
                     //chain level for charmander is 35, is bellow met level
-                    GensEvoChains[gen] = GensEvoChains[gen].Where(e => e.Level >= lvl).ToArray();
+                    GensEvoChains[gen] = GensEvoChains[gen].Where(e => e.Level >= getMinLevelGeneration(pkm,gen)).ToArray();
             }
             return GensEvoChains;
         }
@@ -2445,9 +2507,7 @@ namespace PKHeX.Core
 
             // Evolution chain is in reverse order (devolution)
 
-            if (Encounter is int)
-                minspec = (int)Encounter;
-            else if (Encounter is IEncounterable[])
+            if (Encounter is IEncounterable[])
                 minspec = vs.Reverse().First(s => ((IEncounterable[]) Encounter).Any(slot => slot.Species == s.Species)).Species;
             else if (Encounter is IEncounterable)
                 minspec = vs.Reverse().First(s => ((IEncounterable) Encounter).Species == s.Species).Species;
@@ -3354,7 +3414,7 @@ namespace PKHeX.Core
                 case 6:
                     info = PersonalTable.AO[species];
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
-                    if ( pkm.InhabitedGeneration(6) && specialTutors && (pkm.AO || !pkm.IsUntraded))
+                    if (pkm.InhabitedGeneration(6) && specialTutors && (pkm.AO || !pkm.IsUntraded))
                     {
                         PersonalInfo pi = PersonalTable.AO.getFormeEntry(species, form);
                         for (int i = 0; i < Tutors_AO.Length; i++)
@@ -3370,6 +3430,20 @@ namespace PKHeX.Core
                     break;
             }
             return moves.Distinct();
+        }
+        internal static List<int>[] GetEmptyMovesList(DexLevel[][] EvoChainsAllGens)
+        {
+            var empty = new List<int>[EvoChainsAllGens.Length];
+            for (int i = 0; i < empty.Length; i++)
+                empty[i] = new List<int>();
+            return empty;
+        }
+
+        internal static List<int>[] GetEmptyEggMovesList()
+        {
+            var emptyegg = new List<int>[1];
+            emptyegg[0] = new List<int>();
+            return emptyegg;
         }
     }
 }

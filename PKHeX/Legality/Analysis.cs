@@ -14,9 +14,8 @@ namespace PKHeX.Core
         private List<GBEncounterData> EncountersGBMatch;
         private object EncounterOriginalGB => EncountersGBMatch?.FirstOrDefault()?.Encounter;
         private object EncounterMatch;
-        private Type Type; // Encounter
-        private bool MatchIsMysteryGift => EncounterMatch.GetType().IsSubclassOf(typeof(MysteryGift));
-        private bool EncounterIsMysteryGift => Type.IsSubclassOf(typeof (MysteryGift));
+        private Type Type; // Parent class when applicable (EncounterStatic / MysteryGift)
+        private Type MatchedType; // Child class if applicable (WC6, PGF, etc)
         private string EncounterName => Legal.getEncounterTypeName(pkm, EncounterOriginalGB ?? EncounterMatch);
         private List<MysteryGift> EventGiftMatch;
         private List<EncounterStatic> EncounterStaticMatch;
@@ -26,14 +25,36 @@ namespace PKHeX.Core
 
         public readonly bool Parsed;
         public readonly bool Valid;
+        public readonly bool Error;
         public bool ParsedValid => Parsed && Valid;
         public bool ParsedInvalid => Parsed && !Valid;
         public CheckResult[] vMoves = new CheckResult[4];
         public CheckResult[] vRelearn = new CheckResult[4];
-        public string Report(bool verbose = false) => verbose ? getVerboseLegalityReport() : getLegalityReport(); 
-        public readonly int[] AllSuggestedMoves;
-        public readonly int[] AllSuggestedRelearnMoves;
-        public readonly int[] AllSuggestedMovesAndRelearn;
+        public string Report(bool verbose = false) => verbose ? getVerboseLegalityReport() : getLegalityReport();
+        private IEnumerable<int> AllSuggestedMoves
+        {
+            get
+            {
+                if (Error)
+                    return new int[4];
+                if (_allSuggestedMoves == null)
+                    return _allSuggestedMoves = !pkm.IsOriginValid ? new int[4] : getSuggestedMoves(true, true, true);
+                return _allSuggestedMoves;
+            }
+        }
+        private IEnumerable<int> AllSuggestedRelearnMoves
+        {
+            get
+            {
+                if (Error)
+                    return new int[4];
+                if (_allSuggestedRelearnMoves == null)
+                    return _allSuggestedRelearnMoves = !pkm.IsOriginValid ? new int[4] : Legal.getValidRelearn(pkm, -1).ToArray();
+                return _allSuggestedRelearnMoves;
+            }
+        }
+        private int[] _allSuggestedMoves, _allSuggestedRelearnMoves;
+        public int[] AllSuggestedMovesAndRelearn => AllSuggestedMoves.Concat(AllSuggestedRelearnMoves).ToArray();
 
         public LegalityAnalysis(PKM pk)
         {
@@ -76,8 +97,6 @@ namespace PKHeX.Core
                     if (pkm.FatefulEncounter && vRelearn.Any(chk => !chk.Valid) && EncounterMatch == null)
                         AddLine(Severity.Indeterminate, V188, CheckIdentifier.Fateful);
                 }
-                else
-                    return;
             }
             catch (Exception e)
             {
@@ -85,12 +104,8 @@ namespace PKHeX.Core
                 Valid = false;
                 Parsed = true;
                 AddLine(Severity.Invalid, V190, CheckIdentifier.Misc);
-                AllSuggestedMoves = AllSuggestedRelearnMoves = AllSuggestedMovesAndRelearn = new int[0];
-                return;
+                Error = true;
             }
-            AllSuggestedMoves = !pkm.IsOriginValid ? new int[4] : getSuggestedMoves(true, true, true);
-            AllSuggestedRelearnMoves = !pkm.IsOriginValid ? new int[4] : Legal.getValidRelearn(pkm, -1).ToArray();
-            AllSuggestedMovesAndRelearn = AllSuggestedMoves.Concat(AllSuggestedRelearnMoves).ToArray();
         }
 
         private void AddLine(Severity s, string c, CheckIdentifier i)
@@ -202,9 +217,10 @@ namespace PKHeX.Core
             if (pkm.VC && pkm.Format == 7)
                 EncounterMatch = Legal.getRBYStaticTransfer(pkm.Species);
 
-            Type = (EncounterOriginalGB ?? EncounterMatch ?? pkm.Species)?.GetType();
-            if (Type == typeof (MysteryGift))
-                Type = Type?.BaseType;
+            MatchedType = Type = (EncounterOriginalGB ?? EncounterMatch ?? pkm.Species)?.GetType();
+            var bt = Type.BaseType;
+            if (!(bt == typeof(Array) || bt == typeof(object) || bt.IsPrimitive)) // a parent exists
+                Type = bt; // use base type
         }
         private void updateChecks()
         {

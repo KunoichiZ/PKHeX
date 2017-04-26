@@ -134,7 +134,7 @@ namespace PKHeX.Core
             if (pkm.GenNumber >= 6 && pkm.PID == pkm.EncryptionConstant)
                 AddLine(Severity.Invalid, V208, CheckIdentifier.PID); // better to flag than 1:2^32 odds since RNG is not feasible to yield match
 
-            if (Type == typeof (EncounterStatic))
+            if (Type == typeof(EncounterStatic))
             {
                 var enc = (EncounterStatic)EncounterMatch;
                 if (enc.Shiny != null && (bool) enc.Shiny ^ pkm.IsShiny)
@@ -226,7 +226,7 @@ namespace PKHeX.Core
                 if (pk.Length > (lang == 2 ? 10 : 5))
                     AddLine(Severity.Invalid, V1, CheckIdentifier.Nickname);
             }
-            else if (EncounterIsMysteryGift)
+            else if (Type == typeof(MysteryGift))
             {
                 if (pkm.IsNicknamed && (!(EncounterMatch as MysteryGift)?.IsEgg ?? false))
                     AddLine(Severity.Fishy, V0, CheckIdentifier.Nickname);
@@ -429,7 +429,7 @@ namespace PKHeX.Core
                     return;
                 }
             }
-            if (EncounterIsMysteryGift)
+            if (Type == typeof(MysteryGift))
             {
                 int[] IVs;
                 switch (((MysteryGift) EncounterMatch).Format)
@@ -701,9 +701,9 @@ namespace PKHeX.Core
             switch (pkm.GenNumber)
             {
                 case 4:
-                    if(pkm.HasOriginalMetLocation && pkm.Met_Location == 193 && enc.All( t => t.Type == SlotType.Surf))
+                    if (pkm.HasOriginalMetLocation && pkm.Met_Location == 193 && enc.All(t => t.Type == SlotType.Surf))
                     {
-                        // Pokemon surfing in Jhoto Route 45
+                        // Pokemon surfing in Johto Route 45
                         return new CheckResult(Severity.Invalid, V384, CheckIdentifier.Encounter);
                     }
                     break;
@@ -749,7 +749,7 @@ namespace PKHeX.Core
                         return new CheckResult(Severity.Invalid, V383, CheckIdentifier.Encounter);
                     if (pkm.Species == 492 && s.Location == 063 && !pkm.Pt) // DP Shaymin
                         return new CheckResult(Severity.Invalid, V354, CheckIdentifier.Encounter);
-                    if (s.Location == 193 && (s as EncounterStaticTyped)?.TypeEncounter == EncounterType.Surfing_Fishing) // Roaming pokemon surfin in Jhoto Route 45
+                    if (s.Location == 193 && (s as EncounterStaticTyped)?.TypeEncounter == EncounterType.Surfing_Fishing) // Roaming pokemon surfin in Johto Route 45
                         return new CheckResult(Severity.Invalid, V384, CheckIdentifier.Encounter);
                     break;
                 case 7:
@@ -813,11 +813,17 @@ namespace PKHeX.Core
         }
         private void verifyEncounterType()
         {
+            if (pkm.Format >= 7)
+                return;
+
+            if (!Encounter.Valid)
+                return;
+
             EncounterType type = EncounterType.None;
             // Encounter type data is only stored for gen 4 encounters
             // Gen 6 -> 7 transfer delete encounter type data
             // All eggs have encounter type none, even if they are from static encounters
-            if (pkm.Format < 7 && pkm.Gen4 && !pkm.WasEgg)
+            if (pkm.Gen4 && !pkm.WasEgg)
             {
                 if (EncounterMatch is EncounterSlot[])
                     // If there is more than one slot, the get wild encounter have filter for the pkm type encounter like safari/sports ball
@@ -831,12 +837,11 @@ namespace PKHeX.Core
                 AddLine(Severity.NotImplemented, V382, CheckIdentifier.Encounter);
                 return;
             }
+
             if (type != (EncounterType)pkm.EncounterType)
-            {
                 AddLine(Severity.Invalid, V381, CheckIdentifier.Encounter);
-                return;
-            }
-            AddLine(Severity.Valid, V380, CheckIdentifier.Encounter);
+            else
+                AddLine(Severity.Valid, V380, CheckIdentifier.Encounter);
         }
 
         private CheckResult verifyEncounter()
@@ -970,6 +975,32 @@ namespace PKHeX.Core
 
             return G3Result ?? EggResult ?? new CheckResult(Severity.Invalid, V80, CheckIdentifier.Encounter);
         }
+        private void verifyTransferLegalityG4()
+        {
+            // Transfer Legality
+            int loc = pkm.Met_Location;
+            if (loc != 30001) // PokéTransfer
+            {
+                // Crown
+                switch (pkm.Species)
+                {
+                    case 251: // Celebi
+                        if (loc != 30010 && loc != 30011) // unused || used
+                            AddLine(Severity.Invalid, V351, CheckIdentifier.Encounter);
+                        break;
+                    case 243: // Raikou
+                    case 244: // Entei
+                    case 245: // Suicune
+                        if (loc != 30012 && loc != 30013) // unused || used
+                            AddLine(Severity.Invalid, V351, CheckIdentifier.Encounter);
+                        break;
+                    default:
+                        AddLine(Severity.Invalid, V61, CheckIdentifier.Encounter);
+                        break;
+                }
+            }
+        }
+
         private CheckResult verifyEncounterG4Transfer()
         {
             CheckResult Gen4Result = null;
@@ -984,20 +1015,23 @@ namespace PKHeX.Core
                     Gen4Result = result;
             }
 
-            if (Gen4Result == null && null != (EncounterMatch = Legal.getValidWildEncounters(pkm)))
+            if (Gen4Result == null && !pkm.WasEgg && null != (EncounterMatch = Legal.getValidWildEncounters(pkm)))
             {
                 Gen4WildResult = verifyEncounterWild();
                 WildEncounter = (EncounterSlot[])EncounterMatch;
             }
 
-            if (Gen4Result == null && null != (EncounterStaticMatch = Legal.getValidStaticEncounter(pkm)))
+            if (Gen4Result == null && pkm.Ball != 5 && pkm.Ball != 0x18 && null != (EncounterStaticMatch = Legal.getValidStaticEncounter(pkm)))
             {
                 EncounterMatch = EncounterStaticMatch.First();
                 var result = verifyEncounterStatic();
                 // A pokemon could match a static encounter and a wild encounter at the same time, by default static encounter have preferences
                 // But if the pokemon does not match the static encounter ball and there is a valid wild encounter skip static encounter
                 if (result != null && (pkm.WasEgg || Gen4WildResult == null || EncounterStaticMatch.Any(s => !s.Gift || pkm.Ball == s.Ball)))
+                {
+                    verifyTransferLegalityG4();
                     return result;
+                }
 
                 EncounterStaticMatch = null;
                 EncounterMatch = null; // Reset Encounter Object, test for remaining encounters
@@ -1012,34 +1046,14 @@ namespace PKHeX.Core
                 EncounterMatch = WildEncounter;
             }
 
-            if (Gen4Result == null && null != (EncounterMatch = Legal.getValidIngameTrade(pkm)))
-                Gen4Result = verifyEncounterTrade();
-
-            // Transfer Legality
-            int loc = pkm.Met_Location;
-            if (loc != 30001) // PokéTransfer
+            var trade = Legal.getValidIngameTrade(pkm);
+            if (trade != null)
             {
-                // Crown
-                switch (pkm.Species)
-                {
-                    case 251: // Celebi
-                        if (loc == 30010 || loc == 30011) // unused || used
-                            return Gen4Result;
-                        AddLine(Severity.Invalid, V351, CheckIdentifier.Encounter);
-                        break;
-                    case 243: // Raikou
-                    case 244: // Entei
-                    case 245: // Suicune
-                        if (loc == 30012 || loc == 30013) // unused || used
-                            return Gen4Result;
-                        AddLine(Severity.Invalid, V351, CheckIdentifier.Encounter);
-                        break;
-                    default:
-                        AddLine(Severity.Invalid, V61, CheckIdentifier.Encounter);
-                        break;
-                }
+                Gen4Result = verifyEncounterTrade();
+                EncounterMatch = trade;
             }
 
+            verifyTransferLegalityG4();
             return Gen4Result ?? (wasEvent
                 ? new CheckResult(Severity.Invalid, V78, CheckIdentifier.Encounter)
                 : new CheckResult(Severity.Invalid, V80, CheckIdentifier.Encounter));
@@ -1398,7 +1412,7 @@ namespace PKHeX.Core
                 if (pkm.AbilityNumber == 4 ^ grotto)
                     AddLine(Severity.Invalid, grotto ? V217 : V108, CheckIdentifier.Ability);
             }
-            else if (EncounterIsMysteryGift)
+            else if (Type == typeof(MysteryGift))
                 verifyAbilityMG456(abilities, ((PGF)EncounterMatch).AbilityType);
         }
         private void verifyAbility6(int[] abilities)
@@ -1412,7 +1426,7 @@ namespace PKHeX.Core
                 if (!valid)
                     AddLine(Severity.Invalid, V300, CheckIdentifier.Ability);
             }
-            else if (EncounterIsMysteryGift)
+            else if (Type == typeof(MysteryGift))
                 verifyAbilityMG456(abilities, ((WC6)EncounterMatch).AbilityType);
             else if (Legal.Ban_NoHidden6.Contains(pkm.SpecForm) && pkm.AbilityNumber == 4)
                 AddLine(Severity.Invalid, V112, CheckIdentifier.Ability);
@@ -1427,7 +1441,7 @@ namespace PKHeX.Core
                 if (!valid)
                     AddLine(Severity.Invalid, V111, CheckIdentifier.Ability);
             }
-            else if (EncounterIsMysteryGift)
+            else if (Type == typeof(MysteryGift))
                 verifyAbilityMG456(abilities, ((WC7)EncounterMatch).AbilityType);
             else if (Legal.Ban_NoHidden7.Contains(pkm.SpecForm) && pkm.AbilityNumber == 4)
                 AddLine(Severity.Invalid, V112, CheckIdentifier.Ability);
@@ -1463,7 +1477,7 @@ namespace PKHeX.Core
             if (!Encounter.Valid)
                 return;
 
-            if (EncounterIsMysteryGift)
+            if (Type == typeof(MysteryGift))
             {
                 if (pkm.Species == 490 && ((MysteryGift)EncounterMatch).Ball == 0)
                     // there is no ball data in Manaphy Mystery Gift
@@ -1871,7 +1885,7 @@ namespace PKHeX.Core
             // Determine if we should check for Handling Trainer Memories
             // A Pokémon is untraded if...
             bool untraded = pkm.HT_Name.Length == 0 || pkm.Geo1_Country == 0;
-            if (EncounterIsMysteryGift)
+            if (Type == typeof(MysteryGift))
             {
                 untraded |= !pkm.WasEventEgg;
                 untraded &= pkm.WasEgg;
@@ -1924,7 +1938,7 @@ namespace PKHeX.Core
                 if (pkm.OT_Memory != 0)
                     return new CheckResult(Severity.Invalid, V151, CheckIdentifier.History);
             }
-            else if (Type != typeof(WC6))
+            else if (MatchedType != typeof(WC6))
             {
                 if (pkm.OT_Memory == 0 ^ !pkm.Gen6)
                     return new CheckResult(Severity.Invalid, V152, CheckIdentifier.History);
@@ -2003,13 +2017,13 @@ namespace PKHeX.Core
                 // Undocumented, uncommon, and insignificant -- don't bother.
                 return;
             }
-            if (Type == typeof(WC6))
+            if (MatchedType == typeof(WC6))
             {
                 WC6 g = EncounterMatch as WC6;
                 verifyOTMemoryIs(new[] {g.OT_Memory, g.OT_Intensity, g.OT_TextVar, g.OT_Feeling});
                 return;
             }
-            if (Type == typeof(WC7))
+            if (MatchedType == typeof(WC7))
             {
                 WC7 g = EncounterMatch as WC7;
                 verifyOTMemoryIs(new[] {g.OT_Memory, g.OT_Intensity, g.OT_TextVar, g.OT_Feeling});
@@ -2179,11 +2193,11 @@ namespace PKHeX.Core
                 case 25: // Pikachu
                     if (pkm.Format == 6 && pkm.AltForm != 0 ^ Type == typeof(EncounterStatic))
                     {
-                        string msg = Type == typeof (EncounterStatic) ? V305 : V306;
+                        string msg = Type == typeof(EncounterStatic) ? V305 : V306;
                         AddLine(Severity.Invalid, msg, CheckIdentifier.Form);
                         return;
                     }
-                    if (pkm.Format == 7 && pkm.AltForm != 0 ^ EncounterIsMysteryGift)
+                    if (pkm.Format == 7 && pkm.AltForm != 0 ^ Type == typeof(MysteryGift))
                     {
                         var gift = EncounterMatch as WC7;
                         if (gift != null && gift.Form != pkm.AltForm)
@@ -2255,7 +2269,7 @@ namespace PKHeX.Core
                 case 666: // Vivillon
                     if (pkm.AltForm > 17) // Fancy & Pokéball
                     {
-                        if (!EncounterIsMysteryGift)
+                        if (Type != typeof(MysteryGift))
                             AddLine(Severity.Invalid, V312, CheckIdentifier.Form);
                         else
                             AddLine(Severity.Valid, V313, CheckIdentifier.Form);
@@ -2268,7 +2282,7 @@ namespace PKHeX.Core
                 case 670: // Floette
                     if (pkm.AltForm == 5) // Eternal Flower -- Never Released
                     {
-                        if (!EncounterIsMysteryGift)
+                        if (Type != typeof(MysteryGift))
                             AddLine(Severity.Invalid, V314, CheckIdentifier.Form);
                         else
                             AddLine(Severity.Valid, V315, CheckIdentifier.Form);
@@ -2349,7 +2363,7 @@ namespace PKHeX.Core
 
             if (Encounter.Valid)
             {
-                if (EncounterIsMysteryGift)
+                if (Type == typeof(MysteryGift))
                 {
                     if (pkm.FatefulEncounter)
                         AddLine(Severity.Valid, V321, CheckIdentifier.Fateful);
@@ -2357,7 +2371,7 @@ namespace PKHeX.Core
                         AddLine(Severity.Invalid, V322, CheckIdentifier.Fateful);
                     return;
                 }
-                if (Type == typeof (EncounterStatic))
+                if (Type == typeof(EncounterStatic))
                 {
                     var enc = EncounterMatch as EncounterStatic;
                     if (enc.Fateful)
@@ -2418,7 +2432,7 @@ namespace PKHeX.Core
                 case 791: // Solgaleo
                     if (pkm.Version == 31 && pkm.IsUntraded)
                     {
-                        if (EncounterIsMysteryGift && (EncounterMatch as MysteryGift).Species == pkm.Species) // Gifted via Mystery Gift
+                        if (Type == typeof(MysteryGift) && ((MysteryGift)EncounterMatch).Species == pkm.Species) // Gifted via Mystery Gift
                             break;
                         AddLine(Severity.Invalid, V328, CheckIdentifier.Evolution);
                     }
@@ -2426,7 +2440,7 @@ namespace PKHeX.Core
                 case 792: // Lunala
                     if (pkm.Version == 30 && pkm.IsUntraded)
                     {
-                        if (EncounterIsMysteryGift && (EncounterMatch as MysteryGift).Species == pkm.Species) // Gifted via Mystery Gift
+                        if (Type == typeof(MysteryGift) && ((MysteryGift)EncounterMatch).Species == pkm.Species) // Gifted via Mystery Gift
                             break;
                         AddLine(Severity.Invalid, V328, CheckIdentifier.Evolution);
                     }
@@ -2709,7 +2723,7 @@ namespace PKHeX.Core
                 var BaseLvlMoves = 489 <= pkm.Species && pkm.Species <= 490 ? 1 : 100;
                 var LvlupEggMoves = Legal.getBaseEggMoves(pkm, ver, BaseLvlMoves);
                 // Level up, TMHM or tutor moves exclusive to the incense egg species, like Azurill, incompatible with the non-incense species egg moves
-                var ExclusiveIncenseMoves = issplitbreed ? Legal.getExclusiveEvolutionMoves(pkm, Legal.getBaseEggSpecies(pkm), EvoChainsAllGens,  ver) : null;
+                var ExclusiveIncenseMoves = issplitbreed ? Legal.getExclusivePreEvolutionMoves(pkm, Legal.getBaseEggSpecies(pkm), EvoChainsAllGens,  ver) : null;
                 var EggMoves = Legal.getEggMoves(pkm, ver);
                 
                 bool volt = (gen > 3 || ver == GameVersion.E) && Legal.LightBall.Contains(pkm.Species);
@@ -2790,8 +2804,8 @@ namespace PKHeX.Core
             if (res.Any(r => !r.Valid))
                 return res;
             
-            if (pkm.GenNumber >= 6 && MatchIsMysteryGift)
-                RelearnBase = (EncounterMatch as MysteryGift).RelearnMoves;
+            if (pkm.GenNumber >= 6 && EncounterMatch.GetType().IsSubclassOf(typeof(MysteryGift)))
+                RelearnBase = ((MysteryGift)EncounterMatch).RelearnMoves;
             return res;
         }
         private CheckResult[] parseMovesRelearn(int[] Moves, List<int>[] validLevelMoves, List<int>[] validTMHM, List<int>[] validTutor, int SkipOption, GameVersion game)
@@ -2802,7 +2816,7 @@ namespace PKHeX.Core
             var issplitbreed = pkm.WasEgg && Legal.SplitBreed.Contains(pkm.Species);
             var EggMoves = pkm.WasEgg? Legal.getEggMoves(pkm, game): emptyegg;
             // Level up, TMHM or tutor moves exclusive to the incense egg species, like Azurill, incompatible with the non-incense species egg moves
-            var ExclusiveIncenseMoves = issplitbreed ? Legal.getExclusiveEvolutionMoves(pkm, Legal.getBaseEggSpecies(pkm), EvoChainsAllGens, game) : empty;
+            var ExclusiveIncenseMoves = issplitbreed ? Legal.getExclusivePreEvolutionMoves(pkm, Legal.getBaseEggSpecies(pkm), EvoChainsAllGens, game) : empty;
 
             int[] RelearnMoves = pkm.RelearnMoves;
             int[] SpecialMoves = (EncounterMatch as IMoveset)?.Moves ?? new int[0];
@@ -3057,6 +3071,14 @@ namespace PKHeX.Core
                     ParseEvolutionsIncompatibleMoves(moves, tmhm[1], ref res);
                 }
 
+                if (Legal.EvolutionWithMove.Contains(pkm.Species))
+                {
+                    // Pokemon that evolved by leveling up while learning a specific move
+                    // This pokemon could only have 3 moves from preevolutions that are not the move used to evolved
+                    // including special and eggs moves before realearn generations
+                    ParseEvolutionLevelupMove(moves, EggMovesSplitLearned, IncenseMovesLearned, ref res);
+                }
+
                 if (res.All(r => r != null))
                     return res;
             }
@@ -3182,7 +3204,53 @@ namespace PKHeX.Core
             foreach (int m in ShedinjaEvoMovesLearned)
                 res[m] = new CheckResult(Severity.Invalid, V357, CheckIdentifier.Move);
         }
+        private void ParseEvolutionLevelupMove(int[] moves, List<int>[] EggMovesSplitLearned, List<int> IncenseMovesLearned, ref CheckResult[] res)
+        {
+            // Ignore if there is an invalid move or an empty move, this validtion is only for 4 non-empty moves that are all valid, but invalid as a 4 combination
+            // Ignore Mr.Mime and Sodowodoo from generations 1 to 3, they cant be evolved from Bonsly or Munchlax
+            // Ignore if encounter species is the evolution species, pokemon was not evolved by the player
+            if (!res.All(r => r?.Valid ?? false) || moves.Any(m => m == 0) || (Legal.BabyEvolutionWithMove.Contains(pkm.Species) && pkm.GenNumber <= 3) || (EncounterMatch as IEncounterable)?.Species == pkm.Species)
+                return;
 
+            // Mr.Mime and Sodowodoo from eggs that does not have any exclusive egg move or level up move from Mime Jr or Bonsly, egg can be assumed to be a non-incense egg, pokemon was not evolved by the player
+            if (EncounterMatch == null && pkm.WasEgg && Legal.BabyEvolutionWithMove.Contains(pkm.Species) && !IncenseMovesLearned.Any() && !EggMovesSplitLearned[0].Any())
+                return;
+
+            var ValidMoves = Legal.getValidPostEvolutionMoves(pkm, pkm.Species, EvoChainsAllGens, GameVersion.Any);
+            // Add the evolution moves to valid moves in case some of this moves could not be learned after evolving
+            switch(pkm.Species)
+            {
+                case 122: // Mr. Mime (Mime Jr with Mimic)
+                case 185: // Sudowoodo (Bonsly with Mimic)
+                    ValidMoves.Add(102);
+                    break;
+                case 424: // Ambipom (Aipom with Double Hit)
+                    ValidMoves.Add(458);
+                    break;
+                case 463: // Lickilicky (Lickitung with Rollout)
+                    ValidMoves.Add(205);
+                    break;
+                case 465: // Tangrowth (Tangela with Ancient Power)
+                case 469: // Yanmega (Yamma with Ancient Power)
+                case 473: // Mamoswine (Piloswine with Ancient Power)
+                    ValidMoves.Add(246);
+                    break;
+                case 700: // Sylveon (Eevee with Fairy Move)
+                    // Add every fairy moves without cheking if eevee learn it or not, pokemon moves are determined legal before this function
+                    ValidMoves.AddRange(Legal.FairyMoves);
+                    break;
+                case 763: // Tsareena (Steenee with Stomp)
+                    ValidMoves.Add(23);
+                    break;
+            }
+            if(!moves.Any(m => ValidMoves.Contains(m)))
+            {
+                for(int m = 0; m < 4; m++)
+                {
+                    res[m] = new CheckResult(Severity.Invalid, string.Format(V385, specieslist[pkm.Species]), CheckIdentifier.Move);
+                }
+            }
+        }
         private void verifyPreRelearn()
         {
             // For origins prior to relearn moves, need to try to match a mystery gift if applicable.

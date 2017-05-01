@@ -7,5 +7,10 @@
 
         /// <summary> The RNG seed which immediately generates the PIDIV (starting with PID or IVs, whichever comes first). </summary>
         public uint OriginSeed;
+
+        public bool NoSeed;
+
+        /// <summary> Type of PIDIV correlation </summary>
+        public PIDType Type;
     }
 }

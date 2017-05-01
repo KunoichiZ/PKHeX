@@ -500,6 +500,15 @@ namespace PKHeX.Core
                 if (tr != "GF" && tr != "ゲーフリ") // if there are more events with special OTs, may be worth refactoring
                     AddLine(Severity.Invalid, V39, CheckIdentifier.Trainer);
             }
+            if ((EncounterMatch as EncounterStatic)?.Version == GameVersion.Stadium)
+            {
+                if (tr == "STADIUM" && pkm.TID == 2000)
+                    AddLine(Severity.Valid, V403, CheckIdentifier.Trainer);
+                else if (tr == "スタジアム" && pkm.TID == 1999)
+                    AddLine(Severity.Valid, V404, CheckIdentifier.Trainer);
+                else
+                    AddLine(Severity.Invalid, V402, CheckIdentifier.Trainer);
+            }
         }
         #endregion
         private void verifyHyperTraining()
@@ -739,6 +748,8 @@ namespace PKHeX.Core
             switch (pkm.GenNumber)
             {
                 case 3:
+                    if (((EncounterMatch as EncounterStaticShadow)?.EReader ?? false) && pkm.Language != 1) // Non-JP E-reader Pokemon 
+                        return new CheckResult(Severity.Invalid, V406, CheckIdentifier.Encounter);
                     if (pkm.Species == 151 && s.Location == 201 && pkm.Language != 1) // Non-JP Mew (Old Sea Map)
                         return new CheckResult(Severity.Invalid, V353, CheckIdentifier.Encounter);
                     break;
@@ -769,6 +780,16 @@ namespace PKHeX.Core
         }
         private CheckResult verifyEncounterTrade()
         {
+            var trade = (EncounterTrade)EncounterMatch;
+            if (trade.Species == pkm.Species && trade.EvolveOnTrade)
+            {
+                // Pokemon that evolve on trade can not be in the phase evolution after the trade
+                // If the trade holds an everstone EvolveOnTrade will be false for the encounter
+                var species = specieslist;
+                var unevolved = species[pkm.Species];
+                var evolved = species[pkm.Species + 1];
+                return new CheckResult(Severity.Invalid, string.Format(V401, unevolved, evolved), CheckIdentifier.Encounter);
+            }
             return new CheckResult(Severity.Valid, V76, CheckIdentifier.Encounter);
         }
         private CheckResult verifyEncounterG12()
@@ -782,7 +803,7 @@ namespace PKHeX.Core
                 pkm.WasEgg = true;
                 return verifyEncounterEgg();
             }
-            EncounterMatch = EncounterOriginalGB = EncountersGBMatch?.FirstOrDefault()?.Encounter;
+            EncounterMatch = EncounterOriginalGB = EncountersGBMatch.FirstOrDefault()?.Encounter;
             if (EncounterMatch is EncounterSlot)
                 return new CheckResult(Severity.Valid, V68, CheckIdentifier.Encounter);
             if (EncounterMatch is EncounterStatic)
@@ -831,14 +852,8 @@ namespace PKHeX.Core
                 if (EncounterMatch is EncounterStaticTyped)
                     type = ((EncounterStaticTyped)EncounterMatch).TypeEncounter;
             }
-            if (type == EncounterType.Any)
-            {
-                // Temp analysis until all generation 4 static encounters have defined their encounter type values
-                AddLine(Severity.NotImplemented, V382, CheckIdentifier.Encounter);
-                return;
-            }
 
-            if (type != (EncounterType)pkm.EncounterType)
+            if (!type.Contains(pkm.EncounterType))
                 AddLine(Severity.Invalid, V381, CheckIdentifier.Encounter);
             else
                 AddLine(Severity.Valid, V380, CheckIdentifier.Encounter);
@@ -1126,6 +1141,21 @@ namespace PKHeX.Core
                 AddLine(Severity.Fishy, V87, CheckIdentifier.Level);
             else
                 AddLine(Severity.Valid, V88, CheckIdentifier.Level);
+
+            // There is no way to prevent a gen1 trade evolution as held items (everstone) did not exist.
+            // Machoke, Graveler, Haunter and Kadabra captured in the second phase evolution, excluding in-game trades, are already checked
+            if (pkm.Format <= 2 && Type != typeof (EncounterTrade) && EncounterSpecies == pkm.Species && Legal.Trade_Evolution1.Contains(EncounterSpecies))
+                verifyG1TradeEvo();
+        }
+        private void verifyG1TradeEvo()
+        {
+            var mustevolve = pkm.TradebackStatus == TradebackType.WasTradeback || (pkm.Format == 1 && Legal.IsOutsider(pkm));
+            if (!mustevolve)
+                return;
+            // Pokemon have been traded but it is not evolved, trade evos are sequential dex numbers
+            var unevolved = specieslist[pkm.Species];
+            var evolved = specieslist[pkm.Species + 1];
+            AddLine(Severity.Invalid, string.Format(V405, unevolved, evolved), CheckIdentifier.Level);
         }
         #region verifyMedals
         private void verifyMedals()
@@ -1273,10 +1303,12 @@ namespace PKHeX.Core
             var eb = RibbonSetHelper.getRibbonBits(encounterContent as IRibbonSet1);
 
             if (pkm.Gen3)
+            {
                 eb[0] = sb[0]; // permit Earth Ribbon
-            if (pkm.Version == 15)
-                eb[1] = true; // require National Ribbon TODO: shadow pkm only
-            
+                if (pkm.Version == 15 && MatchedType == typeof(EncounterStaticShadow)) // only require national ribbon if no longer on C/XD
+                    eb[1] = (pkm as CK3)?.RibbonNational ?? (pkm as XK3)?.RibbonNational ?? true;
+            }
+
             for (int i = 0; i < sb.Length; i++)
                 if (sb[i] != eb[i])
                     (eb[i] ? missingRibbons : invalidRibbons).Add(names[i]);
@@ -1295,6 +1327,30 @@ namespace PKHeX.Core
             for (int i = 0; i < sb.Length; i++)
                 if (sb[i] != eb[i])
                     (eb[i] ? missingRibbons : invalidRibbons).Add(names[i]);
+        }
+
+        private void verifyCXD()
+        {
+            if (Type == typeof (EncounterSlot[])) // pokespot
+            {
+                // find origin info, if nothing returned then the PID is unobtainable
+                var slot = ((EncounterSlot[])EncounterMatch)[0].SlotNumber;
+                var pidiv = MethodFinder.getPokeSpotSeeds(pkm, slot);
+                if (!pidiv.Any())
+                    AddLine(Severity.Invalid, V400, CheckIdentifier.PID);
+            }
+            else if (Type == typeof (EncounterStatic))
+            {
+                // Starters have a correlation to the Trainer ID numbers
+                var spec = ((EncounterStatic) EncounterMatch).Species;
+                switch (spec)
+                {
+                    case 133: // Eevee
+                    case 196: // Espeon
+                    case 197: // Umbreon
+                        break; // todo
+                }
+            }
         }
 
         private void verifyAbility()
@@ -2387,7 +2443,10 @@ namespace PKHeX.Core
                         goto case TradebackType.Gen1_NotTradeback;
                     break;
                 case TradebackType.Gen1_NotTradeback:
-                    if ( ((pkm.Species == 149) && (catch_rate == PersonalTable.Y[149].CatchRate)) ||
+                    if ((EncounterMatch as EncounterStatic)?.Version == GameVersion.Stadium || EncounterMatch is EncounterTradeCatchRate)
+                    // Encounters detected by the catch rate, cant be invalid if match this encounters
+                    { AddLine(Severity.Valid, V398, CheckIdentifier.Misc); }
+                    if (((pkm.Species == 149) && (catch_rate == PersonalTable.Y[149].CatchRate)) ||
                          (Legal.Species_NotAvailable_CatchRate.Contains(pkm.Species) && (catch_rate == PersonalTable.RB[pkm.Species].CatchRate)))
                     { AddLine(Severity.Invalid, V396, CheckIdentifier.Misc); }
                     else if (!EvoChainsAllGens[1].Any(e => catch_rate == PersonalTable.RB[e.Species].CatchRate || catch_rate == PersonalTable.Y[e.Species].CatchRate))
@@ -2562,10 +2621,21 @@ namespace PKHeX.Core
             // Gen 1 only have WasEgg true if it can be a gen2 hatched transfer to gen 1 games, not possible in VC
             if (pkm.WasEgg)
                 encounters.Add(null);
-            if (EncountersGBMatch != null)
+            if (EncountersGBMatch == null)
+                return encounters;
+
+            if (EncountersGBMatch.First().Generation == 1)
+            {
+                // If the first encounter is from generation 1, any encounter from generation 2 will not return any valid move that is not valid in gen1 encounter
+                // but it is needed to determine if pokemon could be from only one generation to check tradeback status
+                encounters.Add(EncountersGBMatch.First().Encounter);
+            }
+            else
+            {
                 // Add non egg encounters, start with generation 2
                 // generation 1 will change valid gen 1 lvl moves for every encounter
-                encounters.AddRange(EncountersGBMatch.Where(t => t.Type != GBEncounterType.EggEncounter).OrderByDescending(t => t.Generation).Select(e => e.Encounter));
+                encounters.AddRange(EncountersGBMatch.Where(t => t.Type != GBEncounterType.EggEncounter).Select(e => e.Encounter));
+            }
             return encounters;
         }
         private CheckResult[] verifyMoves(GameVersion game = GameVersion.Any)
@@ -2668,6 +2738,7 @@ namespace PKHeX.Core
 
                 var EncounterMatchGen = EncounterMatch as IGeneration;
                 var defaultG1LevelMoves = EncounterMoves.validLevelUpMoves[1];
+                var defaultTradeback = pkm.TradebackStatus;
                 if (EncounterMatchGen != null)
                     // Generation 1 can have different minimum level in different encounter of the same species; update valid level moves
                     UptateGen1LevelUpMoves(EncounterMoves, EncounterMoves.minLvlG1, EncounterMatchGen.Generation);
@@ -2681,6 +2752,7 @@ namespace PKHeX.Core
 
                 if (EncounterMatchGen?.Generation == 1) // not valid, restore generation 1 moves
                     EncounterMoves.validLevelUpMoves[1] = defaultG1LevelMoves;
+                pkm.TradebackStatus = defaultTradeback;
             }
             return res;
         }
@@ -3026,6 +3098,8 @@ namespace PKHeX.Core
                         IncenseMovesLearned.Add(m);
                     if (res[m].Valid && gen == 1)
                         Gen1MovesLearned.Add(m);
+                    if (res[m].Valid && gen <= 2 && pkm.TradebackStatus == TradebackType.Any && pkm.GenNumber != gen)
+                        pkm.TradebackStatus = TradebackType.WasTradeback;
                 }
 
                 if (gen == generations.Last())
@@ -3049,6 +3123,8 @@ namespace PKHeX.Core
                         else
                             res[m] = new CheckResult(Severity.Valid, V345, CheckIdentifier.Move);
                         LvlupEggMovesLearned.Add(m);
+                        if (pkm.TradebackStatus == TradebackType.Any && pkm.GenNumber == 1)
+                            pkm.TradebackStatus = TradebackType.WasTradeback;
                         if (issplitbreed)
                         {
                             // Only add to split breed lists learned moves that can be from one of the egg species, ignore common moves
@@ -3080,6 +3156,8 @@ namespace PKHeX.Core
                             else
                                 res[m] = new CheckResult(Severity.Valid, V171, CheckIdentifier.Move) { Flag = true };
                             EggMovesLearned.Add(m);
+                            if (pkm.TradebackStatus == TradebackType.Any && pkm.GenNumber == 1)
+                                pkm.TradebackStatus = TradebackType.WasTradeback;
                             if (issplitbreed)
                             {
                                 // Only add to split breed lists egg moves that can be from one of the egg species, ignore common moves
@@ -3102,6 +3180,8 @@ namespace PKHeX.Core
                             else
                                 res[m] = new CheckResult(Severity.Valid, V333, CheckIdentifier.Move) { Flag = true };
                         }
+                        if (pkm.TradebackStatus == TradebackType.Any && pkm.GenNumber == 1)
+                            pkm.TradebackStatus = TradebackType.WasTradeback;
                         EventEggMovesLearned.Add(m);
                     }
 

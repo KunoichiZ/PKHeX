@@ -76,7 +76,7 @@ namespace PKHeX.Core
                 if (!Parse.Any())
                 switch (pk.GenNumber)
                 {
-                    case 3: if (pk.Version != 15) parsePK3(pk); break;
+                    case 3: parsePK3(pk); break;
                     case 4: parsePK4(pk); break;
                     case 5: parsePK5(pk); break;
                     case 6: parsePK6(pk); break;
@@ -142,6 +142,9 @@ namespace PKHeX.Core
             updateMoveLegality();
             updateTypeInfo();
             updateChecks();
+
+            if (pkm.Version == 15)
+                verifyCXD();
         }
         private void parsePK4(PKM pk)
         {
@@ -233,8 +236,10 @@ namespace PKHeX.Core
                 // Dragonite's Catch Rate is different than Dragonair's in Yellow, but there is no Dragonite encounter.
                 var RGBCatchRate = Lineage.Any(s => catch_rate == PersonalTable.RB[s].CatchRate);
                 var YCatchRate = Lineage.Any(s => s != 149 && catch_rate == PersonalTable.Y[s].CatchRate);
-
-                bool matchAny = RGBCatchRate || YCatchRate;
+                // Krabby encounter trade special catch rate
+                var TradeCatchRate = ((pkm.Species == 098 || pkm.Species == 099) && catch_rate == 204);
+                var StadiumCatchRate = Legal.Stadium_GiftSpecies.Contains(pkm.Species) && Legal.Stadium_CatchRate.Contains(catch_rate);
+                bool matchAny = RGBCatchRate || YCatchRate || TradeCatchRate || StadiumCatchRate;
 
                 // If the catch rate value has been modified, the item has either been removed or swapped in Generation 2.
                 var HeldItemCatchRate = catch_rate == 0 || Legal.HeldItems_GSC.Any(h => h == catch_rate);
@@ -247,7 +252,7 @@ namespace PKHeX.Core
 
 
                 // Update the editing settings for the PKM to acknowledge the tradeback status if the species is changed.
-                ((PK1)pkm).CatchRateIsItem = !pkm.Gen1_NotTradeback && HeldItemCatchRate && matchAny;
+                ((PK1)pkm).CatchRateIsItem = !pkm.Gen1_NotTradeback && HeldItemCatchRate && !matchAny;
             }
             else if (pkm.Format == 2 || pkm.VC2)
             {
@@ -273,9 +278,13 @@ namespace PKHeX.Core
             if (pkm.VC && pkm.Format == 7)
                 EncounterMatch = Legal.getRBYStaticTransfer(pkm.Species);
 
+            if (pkm.GenNumber <= 2 && pkm.TradebackStatus == TradebackType.Any && EncountersGBMatch.All(e => e.Generation != pkm.GenNumber))
+                // Example: GSC Pokemon with only possible encounters in RBY, like the legendary birds
+                pkm.TradebackStatus = TradebackType.WasTradeback;
+
             MatchedType = Type = (EncounterOriginalGB ?? EncounterMatch ?? pkm.Species)?.GetType();
             var bt = Type.BaseType;
-            if (!(bt == typeof(Array) || bt == typeof(object) || bt.IsPrimitive)) // a parent exists
+            if (bt != null && !(bt == typeof(Array) || bt == typeof(object) || bt.IsPrimitive)) // a parent exists
                 Type = bt; // use base type
         }
         private void updateChecks()
@@ -314,56 +323,65 @@ namespace PKHeX.Core
             if (!Parsed)
                 return V189;
             
-            string r = "";
+            var lines = new List<string>();
             for (int i = 0; i < 4; i++)
                 if (!vMoves[i].Valid)
-                    r += string.Format(V191, getString(vMoves[i].Judgement), i + 1, vMoves[i].Comment) + Environment.NewLine;
+                    lines.Add(string.Format(V191, getString(vMoves[i].Judgement), i + 1, vMoves[i].Comment));
 
             if (pkm.Format >= 6)
             for (int i = 0; i < 4; i++)
                 if (!vRelearn[i].Valid)
-                    r += string.Format(V192, getString(vRelearn[i].Judgement), i + 1, vRelearn[i].Comment) + Environment.NewLine;
+                    lines.Add(string.Format(V192, getString(vRelearn[i].Judgement), i + 1, vRelearn[i].Comment));
 
-            if (r.Length == 0 && Parse.All(chk => chk.Valid) && Valid)
+            if (lines.Count == 0 && Parse.All(chk => chk.Valid) && Valid)
                 return V193;
             
             // Build result string...
             var outputLines = Parse.Where(chk => !chk.Valid); // Only invalid
-            r += string.Join(Environment.NewLine, outputLines.Select(chk => string.Format(V196, getString(chk.Judgement), chk.Comment)));
+            lines.AddRange(outputLines.Select(chk => string.Format(V196, getString(chk.Judgement), chk.Comment)));
 
-            if (r.Length == 0)
-                r = V190;
+            if (lines.Count == 0)
+                return V190;
 
-            return r.TrimEnd();
+            return string.Join(Environment.NewLine, lines);
         }
         private string getVerboseLegalityReport()
         {
-            string r = getLegalityReport() + Environment.NewLine;
-            if (pkm == null)
-                return r;
-            r += "===" + Environment.NewLine + Environment.NewLine;
-            int rl = r.Length;
+            if (!Parsed)
+                return V189;
+
+            const string separator = "===";
+            string[] br = {separator, ""};
+            var lines = new List<string> {br[1]};
+            lines.AddRange(br);
+            int rl = lines.Count;
 
             for (int i = 0; i < 4; i++)
                 if (vMoves[i].Valid)
-                    r += string.Format(V191, getString(vMoves[i].Judgement), i + 1, vMoves[i].Comment) + Environment.NewLine;
+                    lines.Add(string.Format(V191, getString(vMoves[i].Judgement), i + 1, vMoves[i].Comment));
 
             if (pkm.Format >= 6)
             for (int i = 0; i < 4; i++)
                 if (vRelearn[i].Valid)
-                    r += string.Format(V192, getString(vRelearn[i].Judgement), i + 1, vRelearn[i].Comment) + Environment.NewLine;
+                    lines.Add(string.Format(V192, getString(vRelearn[i].Judgement), i + 1, vRelearn[i].Comment));
 
-            if (rl != r.Length) // move info added, break for next section
-                r += Environment.NewLine;
+            if (rl != lines.Count) // move info added, break for next section
+                lines.Add(br[1]);
             
             var outputLines = Parse.Where(chk => chk != null && chk.Valid && chk.Comment != V).OrderBy(chk => chk.Judgement); // Fishy sorted to top
-            r += string.Join(Environment.NewLine, outputLines.Select(chk => string.Format(V196, getString(chk.Judgement), chk.Comment)));
+            lines.AddRange(outputLines.Select(chk => string.Format(V196, getString(chk.Judgement), chk.Comment)));
 
-            r += Environment.NewLine;
-            r += "===" + Environment.NewLine + Environment.NewLine;
-            r += string.Format(V195, EncounterName);
-
-            return r.TrimEnd();
+            lines.AddRange(br);
+            lines.Add(string.Format(V195, EncounterName));
+            var pidiv = MethodFinder.Analyze(pkm);
+            if (pidiv != null)
+            {
+                if (!pidiv.NoSeed)
+                    lines.Add(string.Format(V248, pidiv.OriginSeed.ToString("X8")));
+                lines.Add(string.Format(V249, pidiv.Type));
+            }
+            
+            return getLegalityReport() + string.Join(Environment.NewLine, lines);
         }
 
         public int[] getSuggestedRelearn()

@@ -18,12 +18,16 @@ namespace PKHeX.Core
         public static string V189 {get; set;} = "Analysis not available for this Pokémon.";
         /// <summary>Format text for exporting a legality check result.</summary>
         public static string V196 {get; set;} = "{0}: {1}";
-        /// <summary>Format text for exporting a legality check result for an invalid Move.</summary>
+        /// <summary>Format text for exporting a legality check result for a Move.</summary>
         public static string V191 {get; set;} = "{0} Move {1}: {2}";
-        /// <summary>Format text for exporting a legality check result for an invalid Relearn Move.</summary>
+        /// <summary>Format text for exporting a legality check result for a Relearn Move.</summary>
         public static string V192 {get; set;} = "{0} Relearn Move {1}: {2}";
         /// <summary>Format text for exporting the type of Encounter that was matched for the the <see cref="PKM"/></summary>
         public static string V195 {get; set;} = "Encounter Type: {0}";
+        /// <summary>Format text for exporting the <see cref="PIDIV.OriginSeed"/> that was matched for the the <see cref="PKM"/></summary>
+        public static string V248 {get; set;} = "Origin Seed: {0}";
+        /// <summary>Format text for exporting the <see cref="PIDIV.Type"/> that was matched for the the <see cref="PKM"/></summary>
+        public static string V249 {get; set;} = "PID Type: {0}";
 
         /// <summary>Severity string for <see cref="Severity.Indeterminate"/></summary>
         public static string V500 { get; set; } = "Indeterminate";
@@ -68,6 +72,8 @@ namespace PKHeX.Core
         public static string V393 { get; set; } = "Valid Type B, match species type.";
         public static string V394 { get; set; } = "Catch rate match a valid held item from generation 2";
         public static string V398 { get; set; } = "Catch Rate match a species from pokemon evolution chain.";
+        public static string V403 { get; set; } = "Valid International Stadium OT.";
+        public static string V404 { get; set; } = "Valid Japanese Stadium OT.";
         #endregion
 
         #region Legality Check Result Strings
@@ -388,6 +394,11 @@ namespace PKHeX.Core
         public static string V396 {get; set;} = "Catch rate match species without encounters. Expected a preevolution catch rate.";
         public static string V397 {get; set;} = "Catch rate does not match any species from pokemon evolution chain.";
         public static string V399 {get; set;} = "Catch rate does not match any species from pokemon evolution chain or any generation 2 held items.";
+        public static string V400 {get; set;} = "Unable to match encounter conditions to a possible RNG frame.";
+        public static string V401 {get; set;} = "In-game trade {0} should have evolved into {1}.";
+        public static string V402 {get; set;} = "Incorrect Stadium OT.";
+        public static string V405 {get; set;} = "Outsider {0} should have evolved into {1}.";
+        public static string V406 {get; set;} = "Non japanese Shadow E-reader Pokémon. Unreleased encounter.";
         #endregion
 
     }

@@ -312,9 +312,23 @@ namespace PKHeX.Core
         }
         private void verifyNicknameEgg()
         {
-            if (!pkm.IsNicknamed && (pkm.Format != 7))
-                AddLine(Severity.Invalid, V12, CheckIdentifier.Egg);
-            else if (PKX.getSpeciesNameGeneration(0, pkm.Language, pkm.GenNumber) != pkm.Nickname)
+            switch (pkm.Format)
+            {
+                case 4:
+                    if (pkm.IsNicknamed) // gen4 doesn't use the nickname flag for eggs
+                        AddLine(Severity.Invalid, V224, CheckIdentifier.Egg);
+                    break;
+                case 7:
+                    if (EncounterMatch is EncounterStatic ^ !pkm.IsNicknamed) // gen7 doesn't use for ingame gifts
+                        AddLine(Severity.Invalid, pkm.IsNicknamed ? V224 : V12, CheckIdentifier.Egg);
+                    break;
+                default:
+                    if (!pkm.IsNicknamed)
+                        AddLine(Severity.Invalid, V12, CheckIdentifier.Egg);
+                    break;
+            }
+
+            if (PKX.getSpeciesNameGeneration(0, pkm.Language, pkm.GenNumber) != pkm.Nickname)
                 AddLine(Severity.Invalid, V13, CheckIdentifier.Egg);
             else
                 AddLine(Severity.Valid, V14, CheckIdentifier.Egg);
@@ -797,12 +811,14 @@ namespace PKHeX.Core
             if (EncountersGBMatch == null)
                 return new CheckResult(Severity.Invalid, V80, CheckIdentifier.Encounter);
 
-            if (EncountersGBMatch.First().Type == GBEncounterType.EggEncounter)
+            var first = EncountersGBMatch.First();
+            if (first.Type == GBEncounterType.EggEncounter)
             {
                 pkm.WasEgg = true;
+                EncounterOriginalGB = first.Species;
                 return verifyEncounterEgg();
             }
-            EncounterMatch = EncounterOriginalGB = EncountersGBMatch.FirstOrDefault()?.Encounter;
+            EncounterMatch = EncounterOriginalGB = first.Encounter;
             if (EncounterMatch is EncounterSlot)
                 return new CheckResult(Severity.Valid, V68, CheckIdentifier.Encounter);
             if (EncounterMatch is EncounterStatic)
@@ -1063,8 +1079,8 @@ namespace PKHeX.Core
             var trade = Legal.getValidIngameTrade(pkm);
             if (trade != null)
             {
-                Gen4Result = verifyEncounterTrade();
                 EncounterMatch = trade;
+                Gen4Result = verifyEncounterTrade();
             }
 
             verifyTransferLegalityG4();
@@ -1382,16 +1398,8 @@ namespace PKHeX.Core
                                         (EncounterMatch as EncounterTrade)?.Ability ??
                                         (EncounterMatch as EncounterLink)?.Ability;
 
-                if ((AbilityUnchanged ?? false) && EncounterAbility != null && EncounterAbility != 0 && pkm.AbilityNumber != EncounterAbility)
-                {
-                    if (pkm.Format >= 6 && abilities[0] != abilities[1] && pkm.AbilityNumber < 4) //Ability Capsule
-                        AddLine(Severity.Valid, V109, CheckIdentifier.Ability);
-                    else if (pkm.Gen3 && EncounterMatch is EncounterTrade && EncounterAbility == 1 << abilval) // Edge case (Static PID?)
-                        AddLine(Severity.Valid, V115, CheckIdentifier.Ability);
-                    else
-                        AddLine(Severity.Invalid, V223, CheckIdentifier.Ability);
-                    return;
-                }
+                if (EncounterAbility != null && verifySetAbility(EncounterAbility, AbilityUnchanged, abilities, abilval))
+                    return; // result added via verifySetAbility
 
                 switch (pkm.GenNumber)
                 {
@@ -1407,6 +1415,26 @@ namespace PKHeX.Core
                 AddLine(Severity.Invalid, pkm.Format < 6 ? V113 : V114, CheckIdentifier.Ability);
             else
                 AddLine(Severity.Valid, V115, CheckIdentifier.Ability);
+        }
+        private bool verifySetAbility(int? EncounterAbility, bool? AbilityUnchanged, int[] abilities, int abilval)
+        {
+            if (pkm.AbilityNumber == 4 && EncounterAbility != 4)
+            {
+                AddLine(Severity.Invalid, V108, CheckIdentifier.Ability);
+                return true;
+            }
+
+            if (!(AbilityUnchanged ?? false) || EncounterAbility == 0 || pkm.AbilityNumber == EncounterAbility)
+                return false;
+
+            if (pkm.Format >= 6 && abilities[0] != abilities[1] && pkm.AbilityNumber < 4) // Ability Capsule
+                AddLine(Severity.Valid, V109, CheckIdentifier.Ability);
+            else if (pkm.Gen3 && EncounterMatch is EncounterTrade && EncounterAbility == 1 << abilval)
+                // Edge case (Static PID?)
+                AddLine(Severity.Valid, V115, CheckIdentifier.Ability);
+            else
+                AddLine(Severity.Invalid, V223, CheckIdentifier.Ability);
+            return true;
         }
         private bool? verifyAbilityPreCapsule(int[] abilities, int abilval)
         {
@@ -1433,13 +1461,12 @@ namespace PKHeX.Core
         private bool? verifyAbilityGen3Transfer(int[] abilities, int abilval, int Species_g3)
         {
             var abilities_g3 = PersonalTable.E[Species_g3].Abilities.Where(a => a != 0).Distinct().ToArray();
-            if (abilities_g3.Length == 2)
-                // For non-GC, it has 2 abilities in gen 3, must match PID
+            if (abilities_g3.Length == 2) // Excluding Colosseum/XD, a gen3 pkm must match PID if it has 2 unique abilities
                 return pkm.Version != (int)GameVersion.CXD;
 
-            var Species_g45 = Math.Max(EvoChainsAllGens[4].FirstOrDefault()?.Species ?? 0, pkm.Format == 5 ? EvoChainsAllGens[5].FirstOrDefault()?.Species ?? 0 : 0);
-            if (Species_g45 > Species_g3)
-                // it have evolved in gen 4 or 5 games, ability must match PID
+            int Species_g4 = EvoChainsAllGens[4].FirstOrDefault()?.Species ?? 0;
+            int Species_g5 = pkm.Format == 5 ? EvoChainsAllGens[5].FirstOrDefault()?.Species ?? 0 : 0;
+            if (Math.Max(Species_g5, Species_g4) > Species_g3) // it has evolved in either gen 4 or gen 5; the ability must match PID
                 return false;
 
             var Evolutions_g45 = Math.Max(EvoChainsAllGens[4].Length, pkm.Format == 5 ? EvoChainsAllGens[5].Length : 0);
@@ -1804,7 +1831,7 @@ namespace PKHeX.Core
 
             if (ball == 26)
             {
-                if ((pkm.Species > 731 && pkm.Species <= 785) || Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e)))
+                if ((pkm.Species > 731 && pkm.Species <= 785) || Lineage.Any(e => Legal.PastGenAlolanNatives.Contains(e) && !Legal.PastGenAlolanNativesUncapturable.Contains(e)))
                 {
                     AddLine(Severity.Valid, V123, CheckIdentifier.Ball);
                     return;
@@ -2783,7 +2810,6 @@ namespace PKHeX.Core
         }
         private GameVersion[] getBaseMovesIsEggGames()
         {
-            GameVersion[] Games = { };
             switch (pkm.GenNumber)
             {
                 case 1:
@@ -2823,15 +2849,13 @@ namespace PKHeX.Core
                         case GameVersion.B:
                         case GameVersion.W:
                             return new[] { GameVersion.BW };
-                        case GameVersion.Pt:
-                            return new[] { GameVersion.Pt };
                         case GameVersion.B2:
                         case GameVersion.W2:
                             return new[] { GameVersion.B2W2 };
                     }
                     break;
             }
-            return Games;
+            return new GameVersion[] {};
         }
         private CheckResult[] parseMovesIsEggPreRelearn(int[] Moves, int[] SpecialMoves, bool allowinherited)
         {
@@ -2919,7 +2943,6 @@ namespace PKHeX.Core
 
                 if (res.All(r => r.Valid)) // moves is satisfactory
                     return res;
-                
             }
             return res;
         }

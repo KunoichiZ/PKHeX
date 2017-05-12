@@ -857,7 +857,7 @@ namespace PKHeX.Core
 
             EncounterType type = EncounterType.None;
             // Encounter type data is only stored for gen 4 encounters
-            // Gen 6 -> 7 transfer delete encounter type data
+            // Gen 6 -> 7 transfer deletes encounter type data
             // All eggs have encounter type none, even if they are from static encounters
             if (pkm.Gen4 && !pkm.WasEgg)
             {
@@ -1053,14 +1053,21 @@ namespace PKHeX.Core
 
             if (Gen4Result == null && pkm.Ball != 5 && pkm.Ball != 0x18 && null != (EncounterStaticMatch = Legal.getValidStaticEncounter(pkm)))
             {
-                EncounterMatch = EncounterStaticMatch.First();
+                EncounterMatch = EncounterStaticMatch[0];
                 var result = verifyEncounterStatic();
                 // A pokemon could match a static encounter and a wild encounter at the same time, by default static encounter have preferences
                 // But if the pokemon does not match the static encounter ball and there is a valid wild encounter skip static encounter
                 if (result != null && (pkm.WasEgg || Gen4WildResult == null || EncounterStaticMatch.Any(s => !s.Gift || pkm.Ball == s.Ball)))
                 {
-                    verifyTransferLegalityG4();
-                    return result;
+                    // Sanity check EncounterType if wild encounters are still an alternative and the EncounterType info is still available
+                    var type = (EncounterType)pkm.EncounterType;
+                    if (Gen4WildResult == null || pkm.Format <= 6 && (type == 0
+                        ? EncounterStaticMatch.Any(s => !(s is EncounterStaticTyped))
+                        : EncounterStaticMatch.Any(s => (s as EncounterStaticTyped)?.TypeEncounter == type)))
+                    {
+                        verifyTransferLegalityG4();
+                        return result;
+                    }
                 }
 
                 EncounterStaticMatch = null;
@@ -1358,13 +1365,32 @@ namespace PKHeX.Core
             {
                 // Starters have a correlation to the Trainer ID numbers
                 var spec = ((EncounterStatic) EncounterMatch).Species;
+                var rev = int.MinValue;
                 switch (spec)
                 {
+                    // pidiv reversed 5x yields SID, again == TID. +7 if another PKM is generated
                     case 133: // Eevee
-                    case 196: // Espeon
-                    case 197: // Umbreon
-                        break; // todo
+                        rev = 5; break;
+
+                    case 197: // Umbreon (generated before Espeon)
+                        rev = 5; break;
+                    case 196: // Espeon (generated after Umbreon)
+                        rev = 12; break;
                 }
+                if (rev == int.MinValue)
+                    return;
+
+                var pidiv = MethodFinder.Analyze(pkm);
+                if (pidiv == null || pidiv.Type != PIDType.CXD)
+                {
+                    AddLine(Severity.Invalid, V400, CheckIdentifier.PID);
+                    return;
+                }
+                var seed = pidiv.OriginSeed;
+                var SIDf = pidiv.RNG.Reverse(seed, rev);
+                var TIDf = pidiv.RNG.Prev(SIDf);
+                if (SIDf >> 16 != pkm.SID || TIDf >> 16 != pkm.TID)
+                    AddLine(Severity.Invalid, V400, CheckIdentifier.PID);
             }
             else if (pkm.WasEgg) // can't obtain eggs in CXD
             {
@@ -2522,9 +2548,12 @@ namespace PKHeX.Core
                 {
                     var enc = EncounterMatch as EncounterStatic;
                     var fateful = enc.Fateful;
+                    var shadow = EncounterMatch is EncounterStaticShadow;
                     if (pkm.Gen3 && pkm.WasEgg && !pkm.IsEgg)
-                        // Fatefull generation 3 eggs lost fatefull mark after hatch
-                        fateful = false;
+                        fateful = false; // lost after hatching
+                    else if (shadow && !(pkm is XK3 || pkm is CK3))
+                        fateful = true; // purification required for transfer
+
                     if (fateful)
                     {
                         if (pkm.FatefulEncounter)
@@ -2532,7 +2561,7 @@ namespace PKHeX.Core
                         else
                             AddLine(Severity.Invalid, V324, CheckIdentifier.Fateful);
                     }
-                    else if (pkm.FatefulEncounter)
+                    else if (pkm.FatefulEncounter && !shadow)
                         AddLine(Severity.Invalid, V325, CheckIdentifier.Fateful);
                 }
                 else if (pkm.FatefulEncounter)

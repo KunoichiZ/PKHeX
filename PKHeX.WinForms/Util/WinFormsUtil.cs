@@ -20,7 +20,8 @@ namespace PKHeX.WinForms
                 rawlist = File.ReadAllLines(externalLangPath);
             else
             {
-                rawlist = Util.getStringList("lang", lang);
+                var file = "lang_" + lang;
+                rawlist = Util.getStringList(file);
                 if (rawlist.Length == 0)
                 {
                     // Translation file does not exist as a resource; abort this function and don't translate UI.
@@ -110,7 +111,7 @@ namespace PKHeX.WinForms
             }
             return cs;
         }
-        internal static void CenterToForm(Control child, Control parent)
+        internal static void CenterToForm(this Control child, Control parent)
         {
             int x = parent.Location.X + (parent.Width - child.Width) / 2;
             int y = parent.Location.Y + (parent.Height - child.Height) / 2;

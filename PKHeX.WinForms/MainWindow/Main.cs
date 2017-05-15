@@ -273,7 +273,7 @@ namespace PKHeX.WinForms
         private static string BackupPath => Path.Combine(WorkingDirectory, "bak");
         private static string TemplatePath => Path.Combine(WorkingDirectory, "template");
         private const string ThreadPath = @"https://projectpokemon.org/PKHeX/";
-        private const string VersionPath = @"https://raw.githubusercontent.com/kwsch/PKHeX/master/PKHeX/Resources/text/version.txt";
+        private const string VersionPath = @"https://raw.githubusercontent.com/kwsch/PKHeX/master/PKHeX.WinForms/Resources/text/version.txt";
 
         #endregion
 
@@ -305,8 +305,8 @@ namespace PKHeX.WinForms
             // Version Check
             if (Settings.Version.Length > 0) // already run on system
             {
-                int lastrev; int.TryParse(Settings.Version, out lastrev);
-                int currrev; int.TryParse(Resources.ProgramVersion, out currrev);
+                int.TryParse(Settings.Version, out int lastrev);
+                int.TryParse(Resources.ProgramVersion, out int currrev);
 
                 showChangelog = lastrev < currrev;
             }
@@ -350,11 +350,10 @@ namespace PKHeX.WinForms
 
             // Detect main
             string cgse = "";
-            string path;
             string pathCache = CyberGadgetUtil.GetCacheFolder();
             if (Directory.Exists(pathCache))
                 cgse = Path.Combine(pathCache);
-            if (!PathUtilWindows.detectSaveFile(out path, cgse))
+            if (!PathUtilWindows.detectSaveFile(out string path, cgse))
                 WinFormsUtil.Error(path);
 
             if (path != null)
@@ -415,11 +414,11 @@ namespace PKHeX.WinForms
             new About().ShowDialog();
         }
         // Sub Menu Options
+        private Form getFirstFormOfType<T>() => Application.OpenForms.Cast<Form>().FirstOrDefault(form => form is T);
         private void mainMenuBoxReport(object sender, EventArgs e)
         {
-            var z = Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.GetType() == typeof(frmReport)) as frmReport;
-            if (z != null)
-            { WinFormsUtil.CenterToForm(z, this); z.BringToFront(); return; }
+            if (getFirstFormOfType<frmReport>() is frmReport z)
+            { z.CenterToForm(this); z.BringToFront(); return; }
             
             frmReport ReportForm = new frmReport();
             ReportForm.Show();
@@ -429,17 +428,15 @@ namespace PKHeX.WinForms
         {
             if (ModifierKeys == Keys.Shift)
             {
-                var c = Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.GetType() == typeof(KChart)) as KChart;
-                if (c != null)
-                { WinFormsUtil.CenterToForm(c, this); c.BringToFront(); }
+                if (getFirstFormOfType<KChart>() is KChart c)
+                { c.CenterToForm(this); c.BringToFront(); }
                 else
                     new KChart().Show();
                 return;
             }
 
-            var z = Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.GetType() == typeof(SAV_Database)) as SAV_Database;
-            if (z != null)
-            { WinFormsUtil.CenterToForm(z, this); z.BringToFront(); return; }
+            if (getFirstFormOfType<SAV_Database>() is SAV_Database z)
+            { z.CenterToForm(this); z.BringToFront(); return; }
 
             if (Directory.Exists(DatabasePath))
                 new SAV_Database(this).Show();
@@ -447,14 +444,12 @@ namespace PKHeX.WinForms
                 WinFormsUtil.Alert("PKHeX's database was not found.",
                     $"Please dump all boxes from a save file, then ensure the '{DatabasePath}' folder exists.");
         }
-        private void mainMenuMysteryDM(object sender, EventArgs e)
+        private void mainMenuMysteryDB(object sender, EventArgs e)
         {
-            var z = Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.GetType() == typeof(SAV_MysteryGiftDB)) as SAV_MysteryGiftDB;
-            if (z != null)
-            { WinFormsUtil.CenterToForm(z, this); z.BringToFront(); return; }
+            if (getFirstFormOfType<SAV_MysteryGiftDB>() is SAV_MysteryGiftDB z)
+            { z.CenterToForm(this); z.BringToFront(); return; }
 
             new SAV_MysteryGiftDB(this).Show();
-            
         }
         private void mainMenuUnicode(object sender, EventArgs e)
         {
@@ -481,58 +476,43 @@ namespace PKHeX.WinForms
         }
         private void mainMenuBoxLoad(object sender, EventArgs e)
         {
-            string path = "";
             if (Directory.Exists(DatabasePath))
             {
-                DialogResult ld = WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Load from PKHeX's database?");
-                if (ld == DialogResult.Yes)
-                    path = DatabasePath;
-                else if (ld == DialogResult.No)
+                var dr = WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Load from PKHeX's database?");
+                if (dr == DialogResult.Yes)
                 {
-                    // open folder dialog
-                    FolderBrowserDialog fbd = new FolderBrowserDialog();
-                    if (fbd.ShowDialog() == DialogResult.OK)
-                        path = fbd.SelectedPath;
+                    loadBoxesFromDB(DatabasePath);
+                    return;
                 }
-                else return;
             }
-            else
-            {
-                // open folder dialog
-                FolderBrowserDialog fbd = new FolderBrowserDialog();
-                if (fbd.ShowDialog() == DialogResult.OK)
-                    path = fbd.SelectedPath;
-            }
-            loadBoxesFromDB(path);
+
+            FolderBrowserDialog fbd = new FolderBrowserDialog();
+            if (fbd.ShowDialog() == DialogResult.OK)
+                loadBoxesFromDB(fbd.SelectedPath);
         }
         private void mainMenuBoxDump(object sender, EventArgs e)
         {
-            string path;
-            bool separate = false;
             // Dump all of box content to files.
             DialogResult ld = WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Save to PKHeX's database?");
             if (ld == DialogResult.Yes)
             {
-                path = DatabasePath;
-                if (!Directory.Exists(path))
-                    Directory.CreateDirectory(path);
+                if (!Directory.Exists(DatabasePath))
+                    Directory.CreateDirectory(DatabasePath);
+
+                SAV.dumpBoxes(DatabasePath, out string result);
+                WinFormsUtil.Alert(result);
             }
             else if (ld == DialogResult.No)
             {
-                separate = DialogResult.Yes == WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Save each box separately?");
-
                 // open folder dialog
                 FolderBrowserDialog fbd = new FolderBrowserDialog();
                 if (fbd.ShowDialog() != DialogResult.OK)
                     return;
 
-                path = fbd.SelectedPath;
+                bool separate = DialogResult.Yes == WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Save each box separately?");
+                SAV.dumpBoxes(fbd.SelectedPath, out string result, separate);
+                WinFormsUtil.Alert(result);
             }
-            else return;
-
-            string result;
-            SAV.dumpBoxes(path, out result, separate);
-            WinFormsUtil.Alert(result);
         }
         private void mainMenuBoxDumpSingle(object sender, EventArgs e)
         {
@@ -541,8 +521,7 @@ namespace PKHeX.WinForms
             if (fbd.ShowDialog() != DialogResult.OK)
                 return;
 
-            string result;
-            SAV.dumpBox(fbd.SelectedPath, out result, CB_BoxSelect.SelectedIndex);
+            SAV.dumpBox(fbd.SelectedPath, out string result, CB_BoxSelect.SelectedIndex);
             WinFormsUtil.Alert(result);
         }
         private void manMenuBatchEditor(object sender, EventArgs e)
@@ -583,7 +562,7 @@ namespace PKHeX.WinForms
             {
                 int Gender = PKX.getGender(Set.Gender);
                 Label_Gender.Text = gendersymbols[Gender];
-                Label_Gender.ForeColor = Gender == 2 ? Label_Species.ForeColor : (Gender == 1 ? Color.Red : Color.Blue);
+                Label_Gender.ForeColor = getGenderColor(Gender);
             }
 
             // Set Form
@@ -948,9 +927,9 @@ namespace PKHeX.WinForms
                         MC.SelectSaveGame(Game);
                         break;
                     }
-                case GCMemoryCardState.SaveGameCOLO:    { MC.SelectSaveGame(GameVersion.COLO); break; }
-                case GCMemoryCardState.SaveGameXD:      { MC.SelectSaveGame(GameVersion.XD); break; }
-                case GCMemoryCardState.SaveGameRSBOX:   { MC.SelectSaveGame(GameVersion.RSBOX); break; }
+                case GCMemoryCardState.SaveGameCOLO:    MC.SelectSaveGame(GameVersion.COLO); break;
+                case GCMemoryCardState.SaveGameXD:      MC.SelectSaveGame(GameVersion.XD); break;
+                case GCMemoryCardState.SaveGameRSBOX:   MC.SelectSaveGame(GameVersion.RSBOX); break;
             }
             return MC;
         }
@@ -1593,7 +1572,7 @@ namespace PKHeX.WinForms
             {
                 CB_ExtraBytes.Items.Clear();
                 foreach (byte b in extraBytes)
-                    CB_ExtraBytes.Items.Add("0x" + b.ToString("X2"));
+                    CB_ExtraBytes.Items.Add($"0x{b:X2}");
                 CB_ExtraBytes.SelectedIndex = 0;
             }
         }
@@ -1617,8 +1596,7 @@ namespace PKHeX.WinForms
 
             if (pkm.Format != SAV.Generation) // past gen format
             {
-                string c;
-                pkm = PKMConverter.convertToFormat(pkm, SAV.PKMType, out c);
+                pkm = PKMConverter.convertToFormat(pkm, SAV.PKMType, out string _);
                 if (pk.Format != pkm.Format && focus) // converted
                     WinFormsUtil.Alert("Converted File.");
             }
@@ -1660,6 +1638,14 @@ namespace PKHeX.WinForms
         }
 
         // General Use Functions shared by other Forms // 
+        public Color getGenderColor(int gender)
+        {
+            if (gender == 0) // male
+                return Color.Blue;
+            if (gender == 1) // female
+                return Color.Red;
+            return CB_Species.ForeColor;
+        }
         internal static void setCountrySubRegion(ComboBox CB, string type)
         {
             int index = CB.SelectedIndex;
@@ -1790,7 +1776,7 @@ namespace PKHeX.WinForms
                     if (!pk.Valid || pk.Species <= 0)
                     { WinFormsUtil.Alert("Invalid data detected."); return; }
 
-                    string c; PKM pkz = PKMConverter.convertToFormat(pk, SAV.PKMType, out c);
+                    PKM pkz = PKMConverter.convertToFormat(pk, SAV.PKMType, out string c);
                     if (pkz == null)
                     { WinFormsUtil.Alert(c); return; }
 
@@ -1844,9 +1830,7 @@ namespace PKHeX.WinForms
         private void clickLevel(object sender, EventArgs e)
         {
             if (ModifierKeys == Keys.Control)
-            {
-                ((MaskedTextBox)sender).Text = "100";
-            }
+                ((MaskedTextBox) sender).Text = "100";
         }
         private void clickGender(object sender, EventArgs e)
         {
@@ -1874,7 +1858,7 @@ namespace PKHeX.WinForms
             }
             pkm.Gender = newGender;
             Label_Gender.Text = gendersymbols[pkm.Gender];
-            Label_Gender.ForeColor = pkm.Gender == 2 ? Label_Species.ForeColor : (pkm.Gender == 1 ? Color.Red : Color.Blue);
+            Label_Gender.ForeColor = getGenderColor(pkm.Gender);
 
             if (PKX.getGender(CB_Form.Text) < 2) // Gendered Forms
                 CB_Form.SelectedIndex = PKX.getGender(Label_Gender.Text);
@@ -1968,7 +1952,7 @@ namespace PKHeX.WinForms
             // Get Save Information
             TB_OT.Text = SAV.OT;
             Label_OTGender.Text = gendersymbols[SAV.Gender % 2];
-            Label_OTGender.ForeColor = SAV.Gender == 1 ? Color.Red : Color.Blue;
+            Label_OTGender.ForeColor = getGenderColor(SAV.Gender % 2);
             TB_TID.Text = SAV.TID.ToString("00000");
             TB_SID.Text = SAV.SID.ToString("00000");
 
@@ -2014,7 +1998,7 @@ namespace PKHeX.WinForms
             {
                 int gender = PKX.getGender(lbl.Text) ^ 1;
                 lbl.Text = gendersymbols[gender];
-                lbl.ForeColor = gender == 1 ? Color.Red : Color.Blue;
+                lbl.ForeColor = getGenderColor(gender);
             }
         }
         private void clickMoves(object sender, EventArgs e)
@@ -2227,9 +2211,7 @@ namespace PKHeX.WinForms
                 if (SAV.Generation == 2)
                 {
                     Label_Gender.Text = gendersymbols[pkm.Gender];
-                    Label_Gender.ForeColor = pkm.Gender == 2
-                        ? Label_Species.ForeColor
-                        : (pkm.Gender == 1 ? Color.Red : Color.Blue);
+                    Label_Gender.ForeColor = getGenderColor(pkm.Gender);
                     if (pkm.Species == 201 && e != null) // Unown
                         CB_Form.SelectedIndex = pkm.AltForm;
                 }
@@ -2256,9 +2238,8 @@ namespace PKHeX.WinForms
         }
         private void updateEVs(object sender, EventArgs e)
         {
-            if (sender is MaskedTextBox)
+            if (sender is MaskedTextBox m)
             {
-                MaskedTextBox m = (MaskedTextBox)sender;
                 if (Util.ToInt32(m.Text) > SAV.MaxEV)
                 { m.Text = SAV.MaxEV.ToString(); return; } // recursive on text set
             }
@@ -2304,15 +2285,17 @@ namespace PKHeX.WinForms
             }
             else
             {
-                bool IV3 = Legal.Legends.Contains(pkm.Species) || Legal.SubLegends.Contains(pkm.Species);
-
                 int[] IVs = new int[6];
                 for (int i = 0; i < 6; i++)
                     IVs[i] = (int)(Util.rnd32() & SAV.MaxIV);
+
+                bool IV3 = pkm.GenNumber >= 6 && (Legal.Legends.Contains(pkm.Species) || Legal.SubLegends.Contains(pkm.Species));
                 if (IV3)
+                {
                     for (int i = 0; i < 3; i++)
                         IVs[i] = SAV.MaxIV;
-                Util.Shuffle(IVs); // Randomize IV order
+                    Util.Shuffle(IVs); // Randomize IV order
+                }
 
                 var IVBoxes = new[] {TB_HPIV, TB_ATKIV, TB_DEFIV, TB_SPAIV, TB_SPDIV, TB_SPEIV};
                 for (int i = 0; i < 6; i++)
@@ -2397,20 +2380,21 @@ namespace PKHeX.WinForms
         }
         private void updateHackedStatText(object sender, EventArgs e)
         {
-            if (!CHK_HackedStats.Checked || !(sender is TextBox))
+            if (!CHK_HackedStats.Checked || !(sender is TextBox tb))
                 return;
 
-            string text = ((TextBox)sender).Text;
+            string text = tb.Text;
             if (string.IsNullOrWhiteSpace(text))
-                ((TextBox)sender).Text = "0";
+                tb.Text = "0";
 
             if (Convert.ToUInt32(text) > ushort.MaxValue)
-                ((TextBox)sender).Text = "65535";
+                tb.Text = "65535";
         }
         private void update255_MTB(object sender, EventArgs e)
         {
-            if (Util.ToInt32(((MaskedTextBox) sender).Text) > byte.MaxValue)
-                    ((MaskedTextBox) sender).Text = "255";
+            if (!(sender is MaskedTextBox tb)) return;
+            if (Util.ToInt32(tb.Text) > byte.MaxValue)
+                tb.Text = "255";
         }
         private void updateForm(object sender, EventArgs e)
         {
@@ -2711,7 +2695,7 @@ namespace PKHeX.WinForms
         }
         private void updateNicknameClick(object sender, MouseEventArgs e)
         {
-            TextBox tb = !(sender is TextBox) ? TB_Nickname : (TextBox) sender;
+            TextBox tb = sender as TextBox ?? TB_Nickname;
             // Special Character Form
             if (ModifierKeys != Keys.Control)
                 return;
@@ -2866,18 +2850,17 @@ namespace PKHeX.WinForms
         {
             if (SAV.Generation < 6)
                 return;
-
-            var TSV = pkm.TSV.ToString("0000");
-            string IDstr = "TSV: " + TSV;
+            
+            string IDstr = $"TSV: {pkm.TSV:d4}";
             if (SAV.Generation > 6)
-                IDstr += Environment.NewLine + "G7TID: " + pkm.TrainerID7.ToString("000000");
+                IDstr += Environment.NewLine + $"G7TID: {pkm.TrainerID7:d7}";
 
             Tip1.SetToolTip(TB_TID, IDstr);
             Tip2.SetToolTip(TB_SID, IDstr);
 
             pkm.PID = Util.getHEXval(TB_PID.Text);
             var PSV = pkm.PSV;
-            Tip3.SetToolTip(TB_PID, "PSV: " + PSV.ToString("0000"));
+            Tip3.SetToolTip(TB_PID, $"PSV: {pkm.PSV:d4}");
         }
         private void update_ID(object sender, EventArgs e)
         {
@@ -2899,7 +2882,7 @@ namespace PKHeX.WinForms
                 pkm.PID = Util.getHEXval(TB_PID.Text);
                 CB_Nature.SelectedValue = pkm.Nature;
                 Label_Gender.Text = gendersymbols[pkm.Gender];
-                Label_Gender.ForeColor = pkm.Gender == 2 ? Label_Species.ForeColor : (pkm.Gender == 1 ? Color.Red : Color.Blue);
+                Label_Gender.ForeColor = getGenderColor(pkm.Gender);
                 fieldsLoaded = true;
             }
         }
@@ -3097,7 +3080,7 @@ namespace PKHeX.WinForms
                 Gender = cg;
 
             Label_Gender.Text = gendersymbols[Gender];
-            Label_Gender.ForeColor = Gender == 2 ? Label_Species.ForeColor : (Gender == 1 ? Color.Red : Color.Blue);
+            Label_Gender.ForeColor = getGenderColor(Gender);
         }
         private void updateStats()
         {
@@ -3436,9 +3419,8 @@ namespace PKHeX.WinForms
                 return;
             if (ModifierKeys != Keys.Shift)
             {
-                var z = Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.GetType() == typeof(SAV_BoxViewer)) as SAV_BoxViewer;
-                if (z != null)
-                { WinFormsUtil.CenterToForm(z, this); z.BringToFront(); return; }
+                if (getFirstFormOfType<SAV_BoxViewer>() is SAV_BoxViewer z)
+                { z.CenterToForm(this); z.BringToFront(); return; }
             }
             new SAV_BoxViewer(this).Show();
         }
@@ -4009,11 +3991,10 @@ namespace PKHeX.WinForms
             if (dr == DialogResult.Cancel)
                 return;
 
-            string result;
             bool clearAll = dr == DialogResult.Yes;
             bool? noSetb = getPKMSetOverride();
 
-            SAV.loadBoxes(path, out result, CB_BoxSelect.SelectedIndex, clearAll, noSetb);
+            SAV.loadBoxes(path, out string result, CB_BoxSelect.SelectedIndex, clearAll, noSetb);
             setPKXBoxes();
             WinFormsUtil.Alert(result);
         }
@@ -4255,12 +4236,11 @@ namespace PKHeX.WinForms
         // Save Folder Related
         private void clickSaveFileName(object sender, EventArgs e)
         {
-            string path;
             string cgse = "";
             string pathCache = CyberGadgetUtil.GetCacheFolder();
             if (Directory.Exists(pathCache))
                 cgse = Path.Combine(pathCache);
-            if (!PathUtilWindows.detectSaveFile(out path, cgse))
+            if (!PathUtilWindows.detectSaveFile(out string path, cgse))
                 WinFormsUtil.Error(path);
             if (path == null || !File.Exists(path)) return;
             if (WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Open save file from the following location?", path) == DialogResult.Yes)
@@ -4424,9 +4404,8 @@ namespace PKHeX.WinForms
                 byte[] data = File.ReadAllBytes(file);
                 MysteryGift mg = MysteryGift.getMysteryGift(data, fi.Extension);
                 PKM temp = mg?.convertToPKM(SAV) ?? PKMConverter.getPKMfromBytes(data, prefer: fi.Extension.Length > 0 ? (fi.Extension.Last() - 0x30)&7 : SAV.Generation);
-                string c;
 
-                PKM pk = PKMConverter.convertToFormat(temp, SAV.PKMType, out c);
+                PKM pk = PKMConverter.convertToFormat(temp, SAV.PKMType, out string c);
                 if (pk == null)
                 { WinFormsUtil.Error(c); Console.WriteLine(c); return; }
 

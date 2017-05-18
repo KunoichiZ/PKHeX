@@ -270,6 +270,34 @@ namespace PKHeX.Core
                     : new EncounterArea {Location = t.First().Location, Slots = t.SelectMany(s => s.Slots).ToArray()})
                 .ToArray();
         }
+        private static void MarkEncountersStaticMagnetPull(ref EncounterArea[] Areas, PersonalTable t)
+        {
+            const int steel = 8;
+            const int electric = 12;
+            foreach (EncounterArea Area in Areas)
+            {
+                var s = new List<EncounterSlot>(); // Static
+                var m = new List<EncounterSlot>(); // Magnet Pull
+                foreach (EncounterSlot Slot in Area.Slots)
+                {
+                    var types = t[Slot.Species].Types;
+                    if (types[0] == steel || types[1] == steel)
+                        m.Add(Slot);
+                    if (types[0] == electric || types[1] == electric)
+                        s.Add(Slot);
+                }
+                foreach (var slot in s)
+                {
+                    slot.Static = true;
+                    slot.StaticCount = s.Count;
+                }
+                foreach (var slot in m)
+                {
+                    slot.MagnetPull = true;
+                    slot.MagnetPullCount = s.Count;
+                }
+            }
+        }
         private static void MarkEncountersGeneration(ref EncounterStatic[] Encounters, int Generation)
         {
             foreach (EncounterStatic Encounter in Encounters)
@@ -764,6 +792,12 @@ namespace PKHeX.Core
                 MarkG3SlotsSafariZones(ref FR_Slots, 136);
                 MarkG3SlotsSafariZones(ref LG_Slots, 136);
 
+                MarkEncountersStaticMagnetPull(ref R_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref S_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref E_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref FR_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref LG_Slots, PersonalTable.SM);
+
                 SlotsR = addExtraTableSlots(R_Slots, SlotsRSEAlt);
                 SlotsS = addExtraTableSlots(S_Slots, SlotsRSEAlt);
                 SlotsE = addExtraTableSlots(E_Slots, SlotsRSEAlt);
@@ -796,6 +830,13 @@ namespace PKHeX.Core
                 var Pt_Slots = getEncounterTables(GameVersion.Pt);
                 var HG_Slots = getEncounterTables(GameVersion.HG);
                 var SS_Slots = getEncounterTables(GameVersion.SS);
+
+                MarkEncountersStaticMagnetPull(ref D_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref P_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref Pt_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref HG_Slots, PersonalTable.SM);
+                MarkEncountersStaticMagnetPull(ref SS_Slots, PersonalTable.SM);
+
                 var DP_Trophy = EncounterArea.getTrophyArea(TrophyDP, new[] {16, 18});
                 var Pt_Trophy = EncounterArea.getTrophyArea(TrophyPt, new[] {22, 22});
                 var HG_Headbutt_Slots = EncounterArea.getArray4HGSS_Headbutt(Data.unpackMini(Util.getBinaryResource("encunters_hb_hg.pkl"), "hg"));
@@ -2261,7 +2302,10 @@ namespace PKHeX.Core
                 // if (wc.Level > pkm.CurrentLevel) continue; // Defer to level legality
                 // RIBBONS: Defer to ribbon legality
 
-                validPCD.Add(mg);
+                if (wc.Species == pkm.Species) // best match
+                    validPCD.Insert(0, mg);
+                else
+                    validPCD.Add(mg);
             }
             return validPCD;
         }
@@ -2317,7 +2361,10 @@ namespace PKHeX.Core
                 // if (wc.Level > pkm.CurrentLevel) continue; // Defer to level legality
                 // RIBBONS: Defer to ribbon legality
 
-                validPGF.Add(wc);
+                if (wc.Species == pkm.Species) // best match
+                    validPGF.Insert(0, wc);
+                else
+                    validPGF.Add(wc);
             }
             return validPGF;
         }
@@ -2377,7 +2424,10 @@ namespace PKHeX.Core
                 // if (wc.Level > pkm.CurrentLevel) continue; // Defer to level legality
                 // RIBBONS: Defer to ribbon legality
 
-                validWC6.Add(wc);
+                if (wc.Species == pkm.Species) // best match
+                    validWC6.Insert(0, wc);
+                else
+                    validWC6.Add(wc);
             }
             return validWC6;
         }
@@ -2448,7 +2498,10 @@ namespace PKHeX.Core
                 // if (wc.Level > pkm.CurrentLevel) continue; // Defer to level legality
                 // RIBBONS: Defer to ribbon legality
 
-                validWC7.Add(wc);
+                if (wc.Species == pkm.Species) // best match
+                    validWC7.Insert(0, wc);
+                else
+                    validWC7.Add(wc);
             }
             return validWC7;
         }
@@ -3322,7 +3375,7 @@ namespace PKHeX.Core
                 return new List<DexLevel>
                 {
                     new DexLevel { Species = 292, Level = lvl, MinLevel = 20 },
-                    new DexLevel { Species = 290, Level = lvl-1, MinLevel = 1 }
+                    new DexLevel { Species = 290, Level = lvl - 1, MinLevel = 1 }
                 };
             if (maxspeciesorigin == -1 && pkm.InhabitedGeneration(2) && pkm.GenNumber == 1)
                 maxspeciesorigin = MaxSpeciesID_2;
@@ -3330,7 +3383,7 @@ namespace PKHeX.Core
             var et = maxspeciesorigin == MaxSpeciesID_2 ? getEvolutionTable(2) : getEvolutionTable(pkm);
             return et.getValidPreEvolutions(pkm, lvl: lvl, maxSpeciesOrigin: maxspeciesorigin, skipChecks: skipChecks);
         }
-        private static IEnumerable<EncounterStatic> getStatic(PKM pkm, IEnumerable<EncounterStatic> table, int maxspeciesorigin =-1, int lvl = -1)
+        private static IEnumerable<EncounterStatic> getStatic(PKM pkm, IEnumerable<EncounterStatic> table, int maxspeciesorigin = -1, int lvl = -1)
         {
             IEnumerable<DexLevel> dl = getValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: lvl);
             return table.Where(e => dl.Any(d => d.Species == e.Species));

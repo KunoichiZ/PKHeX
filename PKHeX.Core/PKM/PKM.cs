@@ -561,23 +561,19 @@ namespace PKHeX.Core
         /// <returns>True if valid, False if invalid.</returns>
         public virtual bool getGenderIsValid()
         {
+            int gender = Gender;
             int gv = PersonalInfo.Gender;
             if (gv == 255)
-                return Gender == 2;
+                return gender == 2;
             if (gv == 254)
-                return Gender == 1;
+                return gender == 1;
             if (gv == 0)
-                return Gender == 0;
+                return gender == 0;
 
             if (GenNumber >= 6)
                 return true;
 
-            if ((PID & 0xFF) < gv)
-                return Gender == 1;
-            if (gv <= (PID & 0xFF))
-                return Gender == 0;
-
-            return false;
+            return gender == PKX.getGender(Species, PID, gv);
         }
 
         /// <summary>
@@ -717,7 +713,7 @@ namespace PKHeX.Core
         /// <param name="move">Move ID</param>
         /// <param name="ppup">PP Ups count</param>
         /// <returns>Current PP for the move.</returns>
-        public int getMovePP(int move, int ppup)
+        public virtual int getMovePP(int move, int ppup)
         {
             return getBasePP(move) * (5 + ppup) / 5;
         }
@@ -727,7 +723,7 @@ namespace PKHeX.Core
         /// </summary>
         /// <param name="move">Move ID</param>
         /// <returns>Amount of PP the move has by default (no PP Ups).</returns>
-        private int getBasePP(int move)
+        protected int getBasePP(int move)
         {
             int[] pptable;
             switch (Format)

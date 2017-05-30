@@ -252,11 +252,11 @@ namespace PKHeX.WinForms.Controls
 
             // Refresh Move Legality
             for (int i = 0; i < 4; i++)
-                movePB[i].Visible = !Legality.vMoves[i].Valid;
+                movePB[i].Visible = !Legality.info?.vMoves[i].Valid ?? false;
 
             if (pkm.Format >= 6)
                 for (int i = 0; i < 4; i++)
-                    relearnPB[i].Visible = !Legality.vRelearn[i].Valid;
+                    relearnPB[i].Visible = !Legality.info?.vRelearn[i].Valid ?? false;
 
             if (skipMoveRepop)
                 return;
@@ -527,7 +527,8 @@ namespace PKHeX.WinForms.Controls
                 do { TB_ATKIV.Text = (Util.rnd32() & pkm.MaxIV).ToString(); } while (PKX.getGender(Label_Gender.Text) != newGender);
             else if (pkm.Format <= 4)
             {
-                pkm.Species = WinFormsUtil.getIndex(CB_Species);
+                if (fieldsLoaded)
+                    pkm.Species = WinFormsUtil.getIndex(CB_Species);
                 pkm.Version = WinFormsUtil.getIndex(CB_GameOrigin);
                 pkm.Nature = WinFormsUtil.getIndex(CB_Nature);
                 pkm.AltForm = CB_Form.SelectedIndex;
@@ -801,7 +802,8 @@ namespace PKHeX.WinForms.Controls
                         CB_Form.SelectedIndex = pkm.AltForm;
                 }
                 setIsShiny(null);
-                UpdatePreviewSprite?.Invoke(this, null);
+                if (fieldsLoaded)
+                    UpdatePreviewSprite?.Invoke(this, null);
             }
 
             CB_HPType.SelectedValue = pkm.HPType;
@@ -1188,7 +1190,8 @@ namespace PKHeX.WinForms.Controls
         private void updateSpecies(object sender, EventArgs e)
         {
             // Get Species dependent information
-            pkm.Species = WinFormsUtil.getIndex(CB_Species);
+            if (fieldsLoaded)
+                pkm.Species = WinFormsUtil.getIndex(CB_Species);
             setAbilityList();
             setForms();
             updateForm(null, null);

@@ -96,6 +96,7 @@ namespace PKHeX.WinForms.Controls
                 tab.DragEnter += enter;
                 tab.DragDrop += drop;
             }
+            M.RequestExternalDragDrop += drop;
         }
         
         // Generic Subfunctions //
@@ -875,7 +876,7 @@ namespace PKHeX.WinForms.Controls
             M.SetColor(-1, -1, null);
             if (SAV.HasBox)
             {
-                int startBox = SAV.Exportable ? 0 : SAV.CurrentBox; // FF if BattleBox
+                int startBox = !SAV.Exportable ? 0 : SAV.CurrentBox; // FF if BattleBox
                 if (startBox > SAV.BoxCount - 1) { tabBoxMulti.SelectedIndex = 1; Box.CurrentBox = 0; }
                 else { tabBoxMulti.SelectedIndex = 0; Box.CurrentBox = startBox; }
             }

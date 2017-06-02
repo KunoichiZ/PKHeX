@@ -136,7 +136,8 @@ namespace PKHeX.Core
                 if (ctr != 0) yield break;
             }
 
-            bool wasEvent = pkm.WasEvent || pkm.WasEventEgg || pkm.GenNumber == 3; // egg events?
+            int gen = pkm.GenNumber;
+            bool wasEvent = pkm.WasEvent || pkm.WasEventEgg || gen == 3; // egg events?
             if (wasEvent)
             {
                 foreach (var z in getValidGifts(pkm))
@@ -144,18 +145,17 @@ namespace PKHeX.Core
                 if (ctr != 0) yield break;
             }
 
-            foreach (var z in getValidStaticEncounter(pkm))
-            { yield return z; ++ctr; }
-            if (ctr != 0) yield break;
-
-            bool gen3egg = pkm.GenNumber <= 3;
-            bool gen4egg = pkm.GenNumber >= 4 && pkm.WasEgg;;
+            bool gen4egg = gen >= 4 && pkm.WasEgg;
             if (gen4egg)
             {
                 foreach (var z in generateEggs(pkm))
                     yield return z;
             }
 
+            bool gen3egg = gen <= 3;
+            foreach (var z in getValidStaticEncounter(pkm))
+            { yield return z; ++ctr; }
+            if (ctr != 0 && !gen3egg) yield break;
             foreach (var z in getValidFriendSafari(pkm))
             { yield return z; ++ctr; }
             if (ctr != 0 && !gen3egg) yield break;
@@ -515,7 +515,7 @@ namespace PKHeX.Core
                 case 6:
                     return LinkGifts6.Where(g => g.Species == pkm.Species && g.Level == pkm.Met_Level);
                 default:
-                    return null;
+                    return new EncounterLink[0];
             }
         }
 
@@ -1104,20 +1104,9 @@ namespace PKHeX.Core
             string tr = pkm.Format <= 2 ? "TRAINER" : "Trainer"; // decaps on transfer
             return ot == "トレーナー" || ot == tr;
         }
-        internal static uint getWurmpleEvoVal(PKM pkm)
-        {
-            uint evoVal;
-            switch (pkm.GenNumber)
-            {
-                case 4:
-                case 3: evoVal = pkm.EncryptionConstant & 0xFFFF; break;
-                default: evoVal = pkm.EncryptionConstant >> 16; break;
-            }
-            return evoVal % 10 / 5;
-        }
         private static bool getWurmpleEvoValid(PKM pkm)
         {
-            uint evoVal = getWurmpleEvoVal(pkm);
+            uint evoVal = PKX.getWurmpleEvoVal(pkm.GenNumber, pkm.EncryptionConstant);
             int wIndex = Array.IndexOf(WurmpleEvolutions, pkm.Species) / 2;
             return evoVal == wIndex;
         }

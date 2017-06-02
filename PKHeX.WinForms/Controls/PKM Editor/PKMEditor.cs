@@ -228,11 +228,11 @@ namespace PKHeX.WinForms.Controls
             Label_HatchCounter.Visible = CHK_IsEgg.Checked && pkm.Format > 1;
             Label_Friendship.Visible = !CHK_IsEgg.Checked && pkm.Format > 1;
 
-            // Set the Preview Box
-            UpdatePreviewSprite(this, null);
             setMarkings();
             updateLegality();
             lastData = preparePKM()?.Data;
+            // Refresh the Preview Box
+            UpdatePreviewSprite?.Invoke(this, null);
         }
         public void updateLegality(LegalityAnalysis la = null, bool skipMoveRepop = false)
         {
@@ -743,6 +743,7 @@ namespace PKHeX.WinForms.Controls
             else if (sender == GB_RelearnMoves)
             {
                 int[] m = Legality.getSuggestedRelearn();
+                if (m.All(z => z == 0))
                 if (!pkm.WasEgg && !pkm.WasEvent && !pkm.WasEventEgg && !pkm.WasLink)
                 {
                     var encounter = Legality.getSuggestedMetInfo();
@@ -975,6 +976,7 @@ namespace PKHeX.WinForms.Controls
                 pkm.PID = PKX.getRandomPID(pkm.Species, pkm.Gender, pkm.Version, pkm.Nature, pkm.Format, (uint)(CB_Ability.SelectedIndex * 0x10001));
 
             TB_PID.Text = pkm.PID.ToString("X8");
+            setIsShiny(null);
             UpdatePreviewSprite?.Invoke(this, null);
             if (pkm.GenNumber < 6 && pkm.Format >= 6)
                 TB_EC.Text = TB_PID.Text;
@@ -991,19 +993,13 @@ namespace PKHeX.WinForms.Controls
             }
             else
             {
+                int gen = pkm.GenNumber;
                 uint EC;
                 bool valid;
                 do
                 {
                     EC = Util.rnd32();
-                    uint evoVal;
-                    switch (pkm.GenNumber)
-                    {
-                        case 4:
-                        case 3: evoVal = pkm.EncryptionConstant & 0xFFFF; break;
-                        default: evoVal = pkm.EncryptionConstant >> 16; break;
-                    }
-                    evoVal = evoVal % 10 / 5;
+                    uint evoVal = PKX.getWurmpleEvoVal(gen, EC);
                     valid = evoVal == wIndex / 2;
                 } while (!valid);
                 TB_EC.Text = EC.ToString("X8");
@@ -1511,6 +1507,7 @@ namespace PKHeX.WinForms.Controls
             if (pkm.GenNumber < 6 && TB_EC.Visible)
                 TB_EC.Text = TB_PID.Text;
 
+            setIsShiny(null);
             UpdatePreviewSprite?.Invoke(this, null);
             updateLegality();
         }

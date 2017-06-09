@@ -88,6 +88,7 @@ namespace PKHeX.WinForms
             mnu.RequestEditorQR += clickQR;
             mnu.RequestEditorSaveAs += mainMenuSave;
             dragout.ContextMenuStrip = mnu.mnuL;
+            C_SAV.menu.RequestEditorLegality += showLegality;
 
             // Load Event Databases
             refreshMGDB();
@@ -156,7 +157,7 @@ namespace PKHeX.WinForms
                 {
                     openSAV(C_SAV.SAV, null);
                     C_SAV.SAV.Edited = false; // Prevents form close warning from showing until changes are made
-                }                    
+                }
             }
             if (pkmArg != null)
                 OpenQuick(pkmArg, force: true);
@@ -293,11 +294,11 @@ namespace PKHeX.WinForms
         }
         private void mainMenuExit(object sender, EventArgs e)
         {
-            if (ModifierKeys != Keys.Control)
-                Close(); // not triggered via hotkey
-
-            if (DialogResult.Yes == WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Quit PKHeX?"))
-                Close();
+            if (ModifierKeys == Keys.Control) // triggered via hotkey
+                if (DialogResult.Yes != WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Quit PKHeX?"))
+                    return;
+                 
+            Close();
         }
         private void mainMenuAbout(object sender, EventArgs e) => new About().ShowDialog();
 
@@ -460,6 +461,8 @@ namespace PKHeX.WinForms
 
             string ext = Path.GetExtension(path);
             FileInfo fi = new FileInfo(path);
+            if (!fi.Exists)
+                return;
             if (fi.Length > 0x10009C && fi.Length != 0x380000 && ! SAV3GCMemoryCard.IsMemoryCardSize(fi.Length))
                 WinFormsUtil.Error("Input file is too large." + Environment.NewLine + $"Size: {fi.Length} bytes", path);
             else if (fi.Length < 32)
@@ -1025,6 +1028,10 @@ namespace PKHeX.WinForms
             if (pk.Species == 0 || !pk.ChecksumValid)
             { SystemSounds.Asterisk.Play(); return; }
 
+            showLegality(sender, e, pk);
+        }
+        private void showLegality(object sender, EventArgs e, PKM pk)
+        {
             LegalityAnalysis la = new LegalityAnalysis(pk);
             if (pk.Slot < 0)
                 PKME_Tabs.updateLegality(la);

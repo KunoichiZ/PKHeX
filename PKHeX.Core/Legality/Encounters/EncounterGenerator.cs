@@ -50,19 +50,35 @@ namespace PKHeX.Core
         }
         private static IEnumerable<IEncounterable> getEncounters3(PKM pkm, LegalInfo info)
         {
+            info.PIDIV = MethodFinder.Analyze(pkm);
+            var deferred = new List<IEncounterable>();
             foreach (var z in GenerateRawEncounters3(pkm))
             {
-                // todo: pidiv filtering
-                yield return z;
+                if (z is EncounterSlot w && pkm.Version == 15)
+                    info.PIDIV = MethodFinder.getPokeSpotSeeds(pkm, w.SlotNumber).FirstOrDefault() ?? info.PIDIV; 
+                if (info.PIDIV.Type.IsCompatible3(z, pkm))
+                    yield return z;
+                else
+                    deferred.Add(z);
             }
+            info.PIDIVMatches = false;
+            foreach (var z in deferred)
+                yield return z;
         }
         private static IEnumerable<IEncounterable> getEncounters4(PKM pkm, LegalInfo info)
         {
+            info.PIDIV = MethodFinder.Analyze(pkm);
+            var deferred = new List<IEncounterable>();
             foreach (var z in GenerateRawEncounters4(pkm))
             {
-                // todo: pidiv filtering
-                yield return z;
+                if (info.PIDIV.Type.IsCompatible4(z))
+                    yield return z;
+                else
+                    deferred.Add(z);
             }
+            info.PIDIVMatches = false;
+            foreach (var z in deferred)
+                yield return z;
         }
         private static IEnumerable<GBEncounterData> GenerateRawEncounters12(PKM pkm, GameVersion game)
         {
@@ -115,7 +131,8 @@ namespace PKHeX.Core
                 if (WasEgg)
                 {
                     int eggspec = getBaseEggSpecies(pkm);
-                    yield return new GBEncounterData(eggspec, GameVersion.C); // gen2 egg
+                    if (AllowGen2Crystal)
+                        yield return new GBEncounterData(eggspec, GameVersion.C); // gen2 egg
                     yield return new GBEncounterData(eggspec, GameVersion.GS); // gen2 egg
                 }
             }
@@ -157,7 +174,6 @@ namespace PKHeX.Core
             {
                 foreach (var z in generateEggs(pkm))
                     yield return z;
-                yield break;
             }
 
             foreach (var z in getValidStaticEncounter(pkm))
@@ -187,7 +203,6 @@ namespace PKHeX.Core
             {
                 foreach (var z in generateEggs(pkm))
                 { yield return z; ++ctr; }
-                if (ctr != 0) yield break;
             }
 
             bool safariSport = pkm.Ball == 0x05 || pkm.Ball == 0x18; // never static encounters
@@ -212,10 +227,8 @@ namespace PKHeX.Core
         }
         private static IEnumerable<IEncounterable> GenerateRawEncounters3(PKM pkm)
         {
-            int ctr = 0;
             foreach (var z in getValidGifts(pkm))
-            { yield return z; ++ctr; }
-            if (ctr != 0) yield break;
+                yield return z;
 
             bool safari = pkm.Ball == 0x05; // never static encounters
             if (!safari)
@@ -232,6 +245,9 @@ namespace PKHeX.Core
             if (safari)
             foreach (var z in getValidStaticEncounter(pkm))
                 yield return z;
+
+            if (pkm.Version == 15)
+                yield break; // no eggs in C/XD
 
             foreach (var z in generateEggs(pkm))
                 yield return z;
@@ -288,12 +304,9 @@ namespace PKHeX.Core
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
-                if (pkm.Gen3 && e.EggLocation != 0)
+                if (pkm.Gen3 && e.EggLocation != 0) // egg
                 {
-                    // Hatched gen 3 gift egg can not be differentiated from normal eggs 
-                    if (!pkm.IsEgg || pkm.Format > 3)
-                        continue;
-                    if (e.EggLocation != pkm.Met_Location)
+                    if (pkm.Format == 3 && pkm.IsEgg && e.EggLocation != pkm.Met_Location)
                         continue;
                 }
                 else if (e.EggLocation != pkm.Egg_Location)
@@ -770,8 +783,8 @@ namespace PKHeX.Core
 
                 if (!wc.IsEgg)
                 {
-                    if (wc.SID != -1 && wc.SID != pkm.SID) continue;
-                    if (wc.TID != -1 && wc.TID != pkm.TID) continue;
+                    if (wc.SID != pkm.SID) continue;
+                    if (wc.TID != pkm.TID) continue;
                     if (wc.OT_Name != pkm.OT_Name) continue;
                     if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
                     if (wc.Language != 0 && wc.Language != pkm.Language) continue;
@@ -1094,16 +1107,12 @@ namespace PKHeX.Core
         {
             if (NoHatchFromEgg.Contains(pkm.Species))
                 yield break;
-
-            GameVersion[] Games = getBaseMovesIsEggGames(pkm);
+            
             int lvl = pkm.GenNumber < 4 ? 5 : 1;
-            foreach (var ver in Games)
-                yield return new EncounterEgg { Game = ver, Level = lvl, Species = getBaseSpecies(pkm, 0) };
+            var ver = (GameVersion) pkm.Version; // version is a true indicator for all generation 3+ origins
+            yield return new EncounterEgg { Game = (GameVersion)pkm.Version, Level = lvl, Species = getBaseSpecies(pkm, 0) };
 
-            if (!getSplitBreedGeneration(pkm).Contains(pkm.Species))
-                yield break;
-
-            foreach (var ver in Games)
+            if (getSplitBreedGeneration(pkm).Contains(pkm.Species))
                 yield return new EncounterEgg { Game = ver, Level = lvl, Species = getBaseSpecies(pkm, 1), SplitBreed = true };
         }
 

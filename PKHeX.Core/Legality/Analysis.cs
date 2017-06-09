@@ -30,22 +30,24 @@ namespace PKHeX.Core
         {
             get
             {
-                if (Error)
+                if (_allSuggestedMoves != null)
+                    return _allSuggestedMoves;
+                if (Error || pkm == null || !pkm.IsOriginValid)
                     return new int[4];
-                if (_allSuggestedMoves == null)
-                    return _allSuggestedMoves = pkm == null || !pkm.IsOriginValid ? new int[4] : getSuggestedMoves(true, true, true);
-                return _allSuggestedMoves;
+                return _allSuggestedMoves = getSuggestedMoves(true, true, true);
             }
         }
         private IEnumerable<int> AllSuggestedRelearnMoves
         {
             get
             {
-                if (Error)
+                if (_allSuggestedRelearnMoves != null)
+                    return _allSuggestedRelearnMoves;
+                if (Error || pkm == null || !pkm.IsOriginValid)
                     return new int[4];
-                if (_allSuggestedRelearnMoves == null)
-                    return _allSuggestedRelearnMoves = pkm == null || !pkm.IsOriginValid ? new int[4] : Legal.getValidRelearn(pkm, info.EncounterMatch.Species).ToArray();
-                return _allSuggestedRelearnMoves;
+                var gender = pkm.PersonalInfo.Gender;
+                var inheritLvlMoves = gender > 0 && gender < 255 || Legal.MixedGenderBreeding.Contains(info.EncounterMatch.Species);
+                return _allSuggestedRelearnMoves = Legal.getValidRelearn(pkm, info.EncounterMatch.Species, inheritLvlMoves).ToArray();
             }
         }
         private int[] _allSuggestedMoves, _allSuggestedRelearnMoves;
@@ -141,6 +143,9 @@ namespace PKHeX.Core
 
             if (pkm.Version == 15)
                 verifyCXD();
+
+            if (info.EncounterMatch is WC3 z && z.NotDistributed)
+                AddLine(Severity.Invalid, V413, CheckIdentifier.Encounter);
         }
         private void parsePK4(PKM pk)
         {
@@ -352,7 +357,7 @@ namespace PKHeX.Core
 
             lines.AddRange(br);
             lines.Add(string.Format(V195, EncounterName));
-            var pidiv = MethodFinder.Analyze(pkm);
+            var pidiv = info.PIDIV ?? MethodFinder.Analyze(pkm);
             if (pidiv != null)
             {
                 if (!pidiv.NoSeed)

@@ -347,7 +347,7 @@ namespace PKHeX.Core
         public static string V328 {get; set;} = "Version Specific evolution requires a trade to opposite version. A Handling Trainer is required.";
 
         public static string V334 {get; set;} = "Non-tradeback egg move. Incompatible with generation 1 exclusive moves.";
-        public static string V335 {get; set;} = "Generation 1 exclusive move. Incompatible with Non-tradeback egg moves.";
+        public static string V335 {get; set;} = "Generation 1 exclusive move. Incompatible with Non-tradeback moves.";
         public static string V336 {get; set;} = "Egg Move. Incompatible with event egg moves.";
         public static string V337 {get; set;} = "Event Egg Move. Incompatible with normal egg moves.";
         public static string V338 {get; set;} = "Defog and whirpool. One of the two moves should have been removed before transfered to generation 5.";
@@ -363,8 +363,9 @@ namespace PKHeX.Core
         public static string V352 {get; set;} = "Arceus from Hall of Origin. Unreleased event.";
         public static string V353 {get; set;} = "Non japanese Mew from Faraway Island. Unreleased event.";
         public static string V354 {get; set;} = "Non Platinum Shaymin from Flower Paradise. Unreleased event.";
-        public static string V383 {get; set;} = "Non Platinum Darkrai from Newmoon Island.Unreleased event.";
+        public static string V383 {get; set;} = "Non Platinum Darkrai from Newmoon Island. Unreleased event.";
         public static string V384 {get; set;} = "Johto Route 45 surfing encounter. Unreachable Water tiles.";
+        public static string V413 {get; set;} = "Unreleased event.";
         public static string V357 {get; set;} = "Only one Ninjask move allowed.";
         public static string V358 {get; set;} = "Inherited move learned by Level-up. Incompatible with event egg moves.";
         public static string V359 {get; set;} = "Unable to match a gift egg encounter from origin game.";
@@ -403,6 +404,9 @@ namespace PKHeX.Core
         public static string V407 {get; set;} = "OT from Colosseum/XD cannot be female.";
         public static string V408 {get; set;} = "Female OT from Generation 1/2 is invalid.";
         public static string V409 {get; set;} = "Mystery Gift shiny mismatch.";
+        public static string V410 {get; set;} = "Mystery Gift fixed PID mismatch.";
+        public static string V411 {get; set;} = "Encounter Type PID mismatch.";
+        public static string V412 {get; set;} = "Non-tradeback pre evolution move. Incompatible with generation 1 exclusive moves.";
         #endregion
 
     }

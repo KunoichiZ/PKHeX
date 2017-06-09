@@ -20,6 +20,7 @@ namespace PKHeX.Core
                 while (encounter.MoveNext())
                 {
                     var EncounterMatch = info.EncounterMatch = encounter.Current;
+                    bool PIDMatch = info.PIDIVMatches;
 
                     var e = EncounterValidator(pkm, EncounterMatch);
                     if (!e.Valid && encounter.PeekIsNext())
@@ -40,11 +41,17 @@ namespace PKHeX.Core
                     if (info.vMoves.Any(z => !z.Valid) && encounter.PeekIsNext())
                         continue;
 
-                    var evo = VerifyEvolution.verifyEvolution(pkm, EncounterMatch);
+                    var evo = VerifyEvolution.verifyEvolution(pkm, info);
                     if (!evo.Valid && encounter.PeekIsNext())
                         continue;
-
                     info.Parse.Add(evo);
+
+                    if (!PIDMatch)
+                    {
+                        if (encounter.PeekIsNext())
+                            continue;
+                        info.Parse.Add(new CheckResult(Severity.Invalid, V411, CheckIdentifier.PID));
+                    }
 
                     // Encounter Passes
                     break;

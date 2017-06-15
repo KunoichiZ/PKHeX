@@ -100,6 +100,26 @@ namespace PKHeX.WinForms
                     dbTemp.Add(pk);
             });
 
+#if DEBUG
+            if (SaveUtil.getSavesFromFolder(Main.BackupPath, false, out IEnumerable<string> result))
+            {
+                Parallel.ForEach(result, file =>
+                {
+                    var sav = SaveUtil.getVariantSAV(File.ReadAllBytes(file));
+                    var path = EXTERNAL_SAV + new FileInfo(file).Name;
+                    if (sav.HasBox)
+                        foreach (var pk in sav.BoxData)
+                            addPKM(pk);
+
+                    void addPKM(PKM pk)
+                    {
+                        pk.Identifier = Path.Combine(path, pk.Identifier);
+                        dbTemp.Add(pk);
+                    }
+                });
+            }
+#endif
+
             // Prepare Database
             RawDB = new List<PKM>(dbTemp.OrderBy(pk => pk.Identifier)
                                         .Concat(SAV.BoxData.Where(pk => pk.Species != 0)) // Fetch from save file
@@ -126,6 +146,7 @@ namespace PKHeX.WinForms
         private readonly string Counter;
         private readonly string Viewed;
         private const int MAXFORMAT = 7;
+        private readonly string EXTERNAL_SAV = new DirectoryInfo(Main.BackupPath).Name + Path.DirectorySeparatorChar;
         private static string hash(PKM pk)
         {
             switch (pk.Format)
@@ -178,10 +199,18 @@ namespace PKHeX.WinForms
             var pk = Results[index];
             string path = pk.Identifier;
 
+#if DEBUG
+            if (path.StartsWith(EXTERNAL_SAV))
+            {
+                WinFormsUtil.Alert("Can't delete from a backup save.");
+                return;
+            }
+#endif
             if (path.Contains(Path.DirectorySeparatorChar))
             {
                 // Data from Database: Delete file from disk
-                File.Delete(path);
+                if (File.Exists(path))
+                    File.Delete(path);
             }
             else
             {
@@ -191,16 +220,13 @@ namespace PKHeX.WinForms
                 int offset = SAV.getBoxOffset(box) + slot*SAV.SIZE_STORED;
                 PKM pkSAV = SAV.getStoredSlot(offset);
 
-                if (pkSAV.Data.SequenceEqual(pk.Data))
-                {
-                    SAV.setStoredSlot(SAV.BlankPKM, offset);
-                    BoxView.setPKXBoxes();
-                }
-                else
+                if (!pkSAV.Data.SequenceEqual(pk.Data)) // data still exists in SAV, unmodified
                 {
                     WinFormsUtil.Error("Database slot data does not match save data!", "Don't move Pokémon after initializing the Database, please re-open the Database viewer.");
                     return;
                 }
+                var change = new SlotChange {Box = box, Offset = offset, Slot = slot};
+                BoxView.M.SetPKM(BoxView.SAV.BlankPKM, change, true, Properties.Resources.slotDel);
             }
             // Remove from database.
             RawDB.Remove(pk);
@@ -373,6 +399,17 @@ namespace PKHeX.WinForms
             // Populate Search Query Result
             IEnumerable<PKM> res = RawDB;
 
+            // Filter for Selected Source
+            if (!Menu_SearchBoxes.Checked)
+                res = res.Where(pk => pk.Identifier.StartsWith(DatabasePath + Path.DirectorySeparatorChar, StringComparison.Ordinal));
+            if (!Menu_SearchDatabase.Checked)
+            {
+                res = res.Where(pk => !pk.Identifier.StartsWith(DatabasePath + Path.DirectorySeparatorChar, StringComparison.Ordinal));
+#if DEBUG
+                res = res.Where(pk => !pk.Identifier.StartsWith(EXTERNAL_SAV, StringComparison.Ordinal));
+#endif
+            }
+
             int format = MAXFORMAT + 1 - CB_Format.SelectedIndex;
             switch (CB_FormatComparator.SelectedIndex)
             {
@@ -488,12 +525,6 @@ namespace PKHeX.WinForms
                     res = res.Where(pk => pk.EVs.Sum() >= 508);
                     break;
             }
-
-            // Filter for Selected Source
-            if (!Menu_SearchBoxes.Checked)
-                res = res.Where(pk => pk.Identifier.StartsWith(DatabasePath + Path.DirectorySeparatorChar, StringComparison.Ordinal));
-            if (!Menu_SearchDatabase.Checked)
-                res = res.Where(pk => !pk.Identifier.StartsWith(DatabasePath + Path.DirectorySeparatorChar, StringComparison.Ordinal));
 
             slotSelected = -1; // reset the slot last viewed
             

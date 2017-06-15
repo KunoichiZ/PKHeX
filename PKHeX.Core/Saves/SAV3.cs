@@ -148,7 +148,7 @@ namespace PKHeX.Core
             HeldItems = Legal.HeldItems_RS;
 
             // Sanity Check SeenFlagOffsets -- early saves may not have block 4 initialized yet
-            SeenFlagOffsets = SeenFlagOffsets.Where(z => z >= 0).ToArray();
+            SeenFlagOffsets = SeenFlagOffsets?.Where(z => z >= 0).ToArray();
 
             if (!Exportable)
                 resetBoxes();
@@ -383,7 +383,7 @@ namespace PKHeX.Core
         {
             get
             {
-                int max = Version == GameVersion.FRLG ? 995 : 95;
+                int max = Version == GameVersion.FRLG ? 999 : 99;
                 var PCItems = new [] {LegalItems, LegalKeyItems, LegalKeyItems, LegalBalls, LegalTMHMs, LegalBerries}.SelectMany(a => a).ToArray();
                 InventoryPouch[] pouch =
                 {

@@ -92,6 +92,10 @@ namespace PKHeX.Core
             HashSet<int> species = new HashSet<int>(vs.Select(p => p.Species).ToList());
 
             var deferred = new List<IEncounterable>();
+            foreach (var t in getValidEncounterTrade(pkm, game))
+            {
+                yield return new GBEncounterData(pkm, gen, t, game);
+            }
             foreach (var s in getValidStaticEncounter(pkm, game))
             {
                 // Valid stadium and non-stadium encounters, return only non-stadium encounters, they are less restrictive
@@ -104,21 +108,16 @@ namespace PKHeX.Core
                 }
                 yield return new GBEncounterData(pkm, gen, s, game);
             }
-
             foreach (var e in getValidWildEncounters(pkm, game))
             {
                 if (!species.Contains(e.Species))
                     continue;
                 yield return new GBEncounterData(pkm, gen, e, game);
             }
-            foreach (var t in getValidEncounterTrade(pkm, game))
-            {
-                yield return new GBEncounterData(pkm, gen, t, game);
-            }
 
-            if (game == GameVersion.GSC)
+            if (game == GameVersion.GSC || game == GameVersion.C)
             {
-                bool WasEgg = !pkm.Gen1_NotTradeback && game == GameVersion.GSC && getWasEgg23(pkm) && !NoHatchFromEgg.Contains(pkm.Species);
+                bool WasEgg = !pkm.Gen1_NotTradeback && getWasEgg23(pkm) && !NoHatchFromEgg.Contains(pkm.Species);
                 if (WasEgg)
                 {
                     // Further Filtering
@@ -142,16 +141,46 @@ namespace PKHeX.Core
         }
         private static IEnumerable<GBEncounterData> GenerateFilteredEncounters(PKM pkm)
         {
-            IEnumerable<GBEncounterData> filter(IEnumerable<GBEncounterData> data) => data
-                .OrderBy(z => z.Type == GBEncounterType.EggEncounter).ThenBy(z => z.Species).ThenBy(z => z.Level);
+            bool crystal = pkm.Format == 2 && pkm.Met_Location != 0;
+            var g1i = new PeekEnumerator<GBEncounterData>(get1().GetEnumerator());
+            var g2i = new PeekEnumerator<GBEncounterData>(get2().GetEnumerator());
+            var deferred = new List<GBEncounterData>();
+            while (g2i.PeekIsNext() || g1i.PeekIsNext())
+            {
+                PeekEnumerator<GBEncounterData> move;
+                if (g1i.PeekIsNext())
+                {
+                    if (g2i.PeekIsNext())
+                        move = g1i.Peek().Type > g2i.Peek().Type ? g1i : g2i;
+                    else
+                        move = g1i;
+                }
+                else
+                    move = g2i;
 
-            if (!pkm.Gen2_NotTradeback)
-                foreach (var z in filter(GenerateRawEncounters12(pkm, GameVersion.RBY)))
-                    yield return z;
+                var obj = move.Peek();
+                if (obj.Generation == 1 && obj.Encounter is EncounterTrade && !getEncounterTrade1Valid(pkm))
+                    deferred.Add(obj);
+                else
+                    yield return obj;
 
-            if (!pkm.Gen1_NotTradeback && AllowGen2VCTransfer)
-                foreach (var z in filter(GenerateRawEncounters12(pkm, GameVersion.GSC)))
-                    yield return z;
+                move.MoveNext();
+            }
+            foreach (var z in deferred)
+                yield return z;
+
+            IEnumerable<GBEncounterData> get1()
+            {
+                if (!pkm.Gen2_NotTradeback && !crystal)
+                    foreach (var z in GenerateRawEncounters12(pkm, GameVersion.RBY))
+                        yield return z;
+            }
+            IEnumerable<GBEncounterData> get2()
+            {
+                if (!pkm.Gen1_NotTradeback && AllowGen2VCTransfer)
+                    foreach (var z in GenerateRawEncounters12(pkm, crystal ? GameVersion.C : GameVersion.GSC))
+                        yield return z;
+            }
         }
         private static IEnumerable<IEncounterable> GenerateRawEncounters(PKM pkm)
         {
@@ -304,16 +333,58 @@ namespace PKHeX.Core
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
-                if (pkm.Gen3 && e.EggLocation != 0) // egg
+                if (pkm.Gen3 && e.EggLocation != 0) // Gen3 Egg
                 {
                     if (pkm.Format == 3 && pkm.IsEgg && e.EggLocation != pkm.Met_Location)
                         continue;
                 }
+                else if (pkm.VC || e.EggLocation != 0) // Gen2 Egg
+                {
+                    if (pkm.Format <= 2)
+                    {
+                        if (pkm.IsEgg)
+                        {
+                            if (pkm.Met_Location != 0 && pkm.Met_Level != 0)
+                                continue;
+                        }
+                        else
+                        {
+                            switch (pkm.Met_Level)
+                            {
+                                case 0:
+                                    if (pkm.Met_Location != 0)
+                                        continue;
+                                    break;
+                                case 1:
+                                    if (pkm.Met_Location == 0)
+                                        continue;
+                                    break;
+                                default:
+                                    if (pkm.Met_Location == 0)
+                                        continue;
+                                    break;
+                            }
+                        }
+                        lvl = 5; // met @ 1, hatch @ 5.
+                    }
+                }
                 else if (e.EggLocation != pkm.Egg_Location)
-                    continue;
+                {
+                    switch (pkm.GenNumber)
+                    {
+                        case 4:
+                            if (pkm.Egg_Location != 2002) // Link Trade
+                                continue;
+                            break;
+                        default:
+                            if (pkm.Egg_Location != 30002) // Link Trade
+                                continue;
+                            break;
+                    }
+                }
                 if (pkm.HasOriginalMetLocation)
                 {
-                    if (e.Location != 0 && e.Location != pkm.Met_Location)
+                    if (!e.EggEncounter && e.Location != 0 && e.Location != pkm.Met_Location)
                         continue;
                     if (e.Level != lvl)
                         continue;
@@ -323,6 +394,8 @@ namespace PKHeX.Core
                 if (e.Gender != -1 && e.Gender != pkm.Gender)
                     continue;
                 if (e.Form != pkm.AltForm && !e.SkipFormCheck && !getCanFormChange(pkm, e.Species))
+                    continue;
+                if (e.EggLocation == 60002 && e.Relearn[0] == 0 && pkm.RelearnMoves.Any(z => z != 0)) // gen7 eevee edge case
                     continue;
 
                 if (pkm is PK1 pk1 && pkm.Gen1_NotTradeback)
@@ -568,8 +641,8 @@ namespace PKHeX.Core
                 gameSource = (GameVersion)pkm.Version;
 
             var slots = getEncounterSlots(pkm, gameSource: gameSource);
-            bool noMet = !pkm.HasOriginalMetLocation;
-            return noMet || pkm.Format <= 2 ? slots : slots.Where(area => area.Location == pkm.Met_Location);
+            bool noMet = !pkm.HasOriginalMetLocation || pkm.Format == 2 && gameSource != GameVersion.C;
+            return noMet ? slots : slots.Where(area => area.Location == pkm.Met_Location);
         }
         private static IEnumerable<EncounterArea> getSlots(PKM pkm, IEnumerable<EncounterArea> tables, int lvl = -1)
         {
@@ -624,6 +697,7 @@ namespace PKHeX.Core
                     var table = !AllowGen1Tradeback ? TradeGift_RBY_NoTradeback : TradeGift_RBY_Tradeback;
                     return getValidEncounterTradeVC1(pkm, p, table);
                 case GameVersion.GSC:
+                case GameVersion.C:
                     return getValidEncounterTradeVC2(pkm, p);
                 default:
                     return null;
@@ -637,11 +711,11 @@ namespace PKHeX.Core
             foreach (var z in possible)
             {
                 // Filter Criteria
-                if (z?.Gender != pkm.Gender)
-                    continue;
                 if (z.TID != pkm.TID)
                     continue;
-                if (!z.IVs.SequenceEqual(pkm.IVs))
+                if (z.Gender != pkm.Gender && pkm.Format <= 2)
+                    continue;
+                if (!z.IVs.SequenceEqual(pkm.IVs) && pkm.Format <= 2)
                     continue;
                 if (pkm.Met_Location != 0 && pkm.Format == 2 && pkm.Met_Location != z.Location)
                     continue;
@@ -1169,6 +1243,21 @@ namespace PKHeX.Core
                 EggLocation = 0,
                 IV3 = true,
                 Version = GameVersion.RBY
+            };
+        }
+        internal static EncounterStatic getGSStaticTransfer(int species)
+        {
+            return new EncounterStatic
+            {
+                Species = species,
+                Gift = true, // Forces Poké Ball
+                Ability = TransferSpeciesDefaultAbility_2.Contains(species) ? 1 : 4, // Hidden by default, else first
+                Shiny = species == 151 || species == 251 ? (bool?)false : null,
+                Fateful = species == 151 || species == 251,
+                Location = 30004, // todo
+                EggLocation = 0,
+                IV3 = true,
+                Version = GameVersion.GS
             };
         }
         internal static bool getEncounterTrade1Valid(PKM pkm)

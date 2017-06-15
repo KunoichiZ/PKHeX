@@ -258,7 +258,9 @@ namespace PKHeX.Core
                     break;
             }
 
-            if (PKX.getSpeciesNameGeneration(0, pkm.Language, pkm.GenNumber) != pkm.Nickname)
+            if (pkm.Format == 2 && pkm.IsEgg && !PKX.getIsNicknamedAnyLanguage(0, pkm.Nickname, 2))
+                AddLine(Severity.Valid, V14, CheckIdentifier.Egg);
+            else if (PKX.getSpeciesNameGeneration(0, pkm.Language, pkm.GenNumber) != pkm.Nickname)
                 AddLine(Severity.Invalid, V13, CheckIdentifier.Egg);
             else
                 AddLine(Severity.Valid, V14, CheckIdentifier.Egg);
@@ -285,7 +287,7 @@ namespace PKHeX.Core
             }
             else if (pkm.Format <= 2 || pkm.VC)
             {
-                var et = EncounterOriginalGB as EncounterTrade;
+                var et = (EncounterOriginalGB ?? EncounterMatch) as EncounterTrade;
                 if (et?.TID == 0) // Gen1 Trade
                 {
                     if (!EncounterGenerator.getEncounterTrade1Valid(pkm))
@@ -409,7 +411,13 @@ namespace PKHeX.Core
         private void verifyOT()
         {
             if (Type == typeof(EncounterTrade))
-                return; // Already matches Encounter Trade information
+                return; // Already matches Encounter information
+
+            if (EncounterMatch is MysteryGift g && !g.IsEgg)
+                return; // Already matches Encounter information
+
+            if (EncounterMatch is EncounterStatic s && s.NSparkle)
+                return; // Already checked by verifyMisc
 
             if (pkm.TID == 0 && pkm.SID == 0)
                 AddLine(Severity.Fishy, V33, CheckIdentifier.Trainer);
@@ -818,6 +826,9 @@ namespace PKHeX.Core
         }
         private void verifyCXDStarterCorrelation(PIDIV pidiv)
         {
+            if (pidiv.Type != PIDType.CXD)
+                return;
+
             var spec = EncounterMatch.Species;
             int rev; // pidiv reversed 2x yields SID, 3x yields TID. shift by 7 if another PKM is generated prior
             switch (spec)

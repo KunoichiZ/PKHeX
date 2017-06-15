@@ -227,6 +227,7 @@ namespace PKHeX.Core
                                 return null;
                             }
                             pkm = ((PK2) pk).convertToPK1();
+                            pkm.ClearInvalidMoves();
                         }
                         else
                             pkm = null;
@@ -267,6 +268,11 @@ namespace PKHeX.Core
                             pkm = ((PK4)pkm).convertToBK4();
                             break;
                         }
+                        if (pkm.Species == 172 && pkm.AltForm != 0)
+                        {
+                            comment = "Cannot transfer Spiky-Eared Pichu forward.";
+                            return null;
+                        }
                         pkm = ((PK4)pkm).convertToPK5();
                         if (toFormat == 5)
                             break;
@@ -277,6 +283,11 @@ namespace PKHeX.Core
                             break;
                         goto case nameof(PK6);
                     case nameof(PK6):
+                        if (pkm.Species == 25 && pkm.AltForm != 0) // cosplay pikachu
+                        {
+                            comment = "Cannot transfer Cosplay Pikachu forward.";
+                            return null;
+                        }
                         pkm = ((PK6)pkm).convertToPK7();
                         if (toFormat == 7)
                             break;

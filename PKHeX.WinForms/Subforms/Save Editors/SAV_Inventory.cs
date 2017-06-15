@@ -15,8 +15,6 @@ namespace PKHeX.WinForms
             SAV = (Origin = sav).Clone();
             InitializeComponent();
             WinFormsUtil.TranslateInterface(this, Main.curlanguage);
-            if (SAV.Generation <= 3)
-                NUD_Count.Visible = L_Count.Visible = B_GiveAll.Visible = false;
             itemlist = GameInfo.Strings.getItemStrings(SAV.Generation, SAV.Version);
 
             for (int i = 0; i < itemlist.Length; i++)
@@ -250,7 +248,19 @@ namespace PKHeX.WinForms
             else
                 NUD_Count.Maximum = pouch.MaxCount;
 
-            NUD_Count.Value = pouch.Type == InventoryType.KeyItems ? 1 : pouch.MaxCount;
+            bool disable = pouch.Type == InventoryType.PCItems || pouch.Type == InventoryType.FreeSpace;
+            NUD_Count.Visible = L_Count.Visible = B_GiveAll.Visible = !disable;
+            if (disable && !Main.HaX)
+            {
+                giveMenu.Items.Remove(giveAll);
+                giveMenu.Items.Remove(giveModify);
+            }
+            else if (!giveMenu.Items.Contains(giveAll))
+            {
+                giveMenu.Items.Insert(0, giveAll);
+                giveMenu.Items.Add(giveModify);
+            }
+            NUD_Count.Value = Math.Max(1, pouch.MaxCount - 4);
         }
 
         // Initialize String Tables
@@ -280,7 +290,18 @@ namespace PKHeX.WinForms
             if (pouch < 0)
                 return;
             var p = Pouches[pouch];
-            ushort[] legalitems = p.LegalItems;
+            ushort[] legalitems = (ushort[])p.LegalItems.Clone();
+            bool resize = legalitems.Length > p.Items.Length;
+            if (resize)
+            {
+                var dr = WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Pouch is too small for all items.",
+                    "Yes: Give by Item ID" + Environment.NewLine + "No: Random assortment");
+                if (dr == DialogResult.Cancel)
+                    return;
+                if (dr == DialogResult.No)
+                    Util.Shuffle(legalitems);
+                Array.Resize(ref legalitems, p.Items.Length);
+            }
 
             DataGridView dgv = Controls.Find(DGVPrefix + p.Type, true).FirstOrDefault() as DataGridView;
             setBag(dgv, p);
@@ -288,30 +309,13 @@ namespace PKHeX.WinForms
             int Count = (int)NUD_Count.Value;
             for (int i = 0; i < legalitems.Length; i++)
             {
-                int item = legalitems[i];
+                ushort item = legalitems[i];
                 var itemname = itemlist[item];
                 int c = Count;
 
                 // Override for HMs
-                switch (SAV.Generation)
-                {
-                    case 1:
-                        if (197 >= item && item <= 201)
-                            c = 1;
-                        break;
-                    case 2:
-                        if (item >= 244)
-                            c = 1;
-                        break;
-                    case 3:
-                        if (Legal.Pouch_HM_RS.Contains(legalitems[i]))
-                            c = 1;
-                        break;
-                    default:
-                        if (new[] { 420, 421, 422, 423, 423, 424, 425, 426, 427, 737 }.Contains(legalitems[i]))
-                            c = 1;
-                        break;
-                }
+                if (getIsCappedItemCount(item, SAV))
+                    c = 1;
 
                 int l = 0;
                 dgv.Rows[i].Cells[l++].Value = itemname;
@@ -324,6 +328,20 @@ namespace PKHeX.WinForms
                     dgv.Rows[i].Cells[l].Value = t?.New ?? CHK_NEW.Checked;
             }
             System.Media.SystemSounds.Asterisk.Play();
+        }
+        private static bool getIsCappedItemCount(ushort item, SaveFile sav)
+        {
+            switch (sav.Generation)
+            {
+                case 1:
+                    return 196 >= item && item <= 200; // HMs
+                case 2:
+                    return item >= 244;
+                case 3:
+                    return Legal.Pouch_HM_RS.Contains(item);
+                default:
+                    return new[] {420, 421, 422, 423, 423, 424, 425, 426, 427, 737}.Contains(item);
+            }
         }
         private void removeAllItems(object sender, EventArgs e)
         {
@@ -360,7 +378,7 @@ namespace PKHeX.WinForms
                 string item = dgv.Rows[i].Cells[0].Value.ToString();
                 int itemindex = Array.IndexOf(itemlist, item);
                 if (itemindex > 0)
-                    dgv.Rows[i].Cells[1].Value = NUD_Count.Value;
+                    dgv.Rows[i].Cells[1].Value = getIsCappedItemCount((ushort)itemindex, SAV) ? 1 : NUD_Count.Value;
 
             }
             WinFormsUtil.Alert("Item count modified.");

@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace PKHeX.Core
 {
-    public class PK6 : PKM, IRibbonSet1, IRibbonSet2
+    public class PK6 : PKM, IRibbonSetEvent3, IRibbonSetEvent4, IRibbonSetCommon3, IRibbonSetCommon4, IRibbonSetCommon6
     {
         public static readonly byte[] ExtraBytes =
         {
@@ -13,25 +13,25 @@ namespace PKHeX.Core
         public sealed override int SIZE_PARTY => PKX.SIZE_6PARTY;
         public override int SIZE_STORED => PKX.SIZE_6STORED;
         public override int Format => 6;
-        public override PersonalInfo PersonalInfo => PersonalTable.AO.getFormeEntry(Species, AltForm);
+        public override PersonalInfo PersonalInfo => PersonalTable.AO.GetFormeEntry(Species, AltForm);
 
         public PK6(byte[] decryptedData = null, string ident = null)
         {
             Data = (byte[])(decryptedData ?? new byte[SIZE_PARTY]).Clone();
-            PKMConverter.checkEncrypted(ref Data);
+            PKMConverter.CheckEncrypted(ref Data);
             Identifier = ident;
             if (Data.Length != SIZE_PARTY)
                 Array.Resize(ref Data, SIZE_PARTY);
         }
         public override PKM Clone() { return new PK6(Data); }
 
-        public override string getString(int Offset, int Count) => PKX.getString6(Data, Offset, Count);
-        public override byte[] setString(string value, int maxLength) => PKX.setString6(value, maxLength);
+        public override string GetString(int Offset, int Count) => PKX.GetString6(Data, Offset, Count);
+        public override byte[] SetString(string value, int maxLength) => PKX.SetString6(value, maxLength);
 
         // Trash Bytes
-        public override byte[] Nickname_Trash { get => getData(0x40, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0x40); } }
-        public override byte[] HT_Trash { get => getData(0x78, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0x78); } }
-        public override byte[] OT_Trash { get => getData(0xB0, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0xB0); } }
+        public override byte[] Nickname_Trash { get => GetData(0x40, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0x40); } }
+        public override byte[] HT_Trash { get => GetData(0x78, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0x78); } }
+        public override byte[] OT_Trash { get => GetData(0xB0, 24); set { if (value?.Length == 24) value.CopyTo(Data, 0xB0); } }
 
         // Structure
         #region Block A
@@ -210,7 +210,7 @@ namespace PKHeX.Core
         public uint FormDuration { get => BitConverter.ToUInt32(Data, 0x3C); set => BitConverter.GetBytes(value).CopyTo(Data, 0x3C); }
         #endregion
         #region Block B
-        public override string Nickname { get => getString(0x40, 24); set => setString(value, 12).CopyTo(Data, 0x40); }
+        public override string Nickname { get => GetString(0x40, 24); set => SetString(value, 12).CopyTo(Data, 0x40); }
         public override int Move1
         {
             get => BitConverter.ToUInt16(Data, 0x5A);
@@ -273,7 +273,7 @@ namespace PKHeX.Core
         public override bool IsNicknamed { get => ((IV32 >> 31) & 1) == 1; set => IV32 = (IV32 & 0x7FFFFFFF) | (value ? 0x80000000 : 0); }
         #endregion
         #region Block C
-        public override string HT_Name { get => getString(0x78, 24); set => setString(value, 12).CopyTo(Data, 0x78); }
+        public override string HT_Name { get => GetString(0x78, 24); set => SetString(value, 12).CopyTo(Data, 0x78); }
         public override int HT_Gender { get => Data[0x92]; set => Data[0x92] = (byte)value; }
         public override int CurrentHandler { get => Data[0x93]; set => Data[0x93] = (byte)value; }
         public override int Geo1_Region { get => Data[0x94]; set => Data[0x94] = (byte)value; }
@@ -305,7 +305,7 @@ namespace PKHeX.Core
         public override byte Enjoyment { get => Data[0xAF]; set => Data[0xAF] = value; }
         #endregion
         #region Block D
-        public override string OT_Name { get => getString(0xB0, 24); set => setString(value, 12).CopyTo(Data, 0xB0); }
+        public override string OT_Name { get => GetString(0xB0, 24); set => SetString(value, 12).CopyTo(Data, 0xB0); }
         public override int OT_Friendship { get => Data[0xCA]; set => Data[0xCA] = (byte)value; }
         public override int OT_Affection { get => Data[0xCB]; set => Data[0xCB] = (byte)value; }
         public override int OT_Intensity { get => Data[0xCC]; set => Data[0xCC] = (byte)value; }
@@ -353,7 +353,21 @@ namespace PKHeX.Core
             get => CurrentHandler == 1 ? OT_Friendship : HT_Friendship;
             set { if (CurrentHandler == 1) OT_Friendship = value; else HT_Friendship = value; }
         }
-        
+        public override int SuperTrainingMedalCount(int maxCount = 30)
+        {
+            uint value = BitConverter.ToUInt16(Data, 0x2C);
+            int TrainCount = 0;
+            value >>= 2;
+            for (int i = 0; i < maxCount; i++)
+            {
+                if ((value & 1) != 0)
+                    TrainCount++;
+                value >>= 1;
+            }
+
+            return TrainCount;
+        }
+
         public override int PSV => (int)((PID >> 16 ^ PID & 0xFFFF) >> 4);
         public override int TSV => (TID ^ SID) >> 4;
         public bool IsUntradedEvent6 => Geo1_Country == 0 && Geo1_Region == 0 && Met_Location / 10000 == 4 && Gen6;
@@ -377,10 +391,10 @@ namespace PKHeX.Core
         }
 
         // Methods
-        public override byte[] Encrypt()
+        protected override byte[] Encrypt()
         {
             RefreshChecksum();
-            return PKX.encryptArray(Data);
+            return PKX.EncryptArray(Data);
         }
 
         // General User-error Fixes
@@ -550,7 +564,7 @@ namespace PKHeX.Core
             HT_Memory = 4; // Link trade to [VAR: General Location]
             HT_TextVar = Bank ? 0 : 9; // Somewhere (Bank) : Pokécenter (Trade)
             HT_Intensity = 1;
-            HT_Feeling = Util.rand.Next(0, Bank ? 9 : 19); // 0-9 Bank, 0-19 Trade
+            HT_Feeling = Util.Rand.Next(0, Bank ? 9 : 19); // 0-9 Bank, 0-19 Trade
         }
 
         // Legality Properties
@@ -573,7 +587,7 @@ namespace PKHeX.Core
         public override int OTLength => 12;
         public override int NickLength => 12;
 
-        public PK7 convertToPK7()
+        public PK7 ConvertToPK7()
         {
             PK7 pk7 = new PK7(Data)
             {

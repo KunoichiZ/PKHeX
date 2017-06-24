@@ -215,18 +215,6 @@ namespace PKHeX.Core
         public static string V94 {get; set;} = "Distribution Super Training missions are not released."; // Fishy
         public static string V98 {get; set;} = "Unused Super Training Flag is flagged.";
 
-        public static string V95 {get; set;} = "Can't receive Ribbon(s) as an Egg.";
-        public static string V96 {get; set;} = "GBA Champion Ribbon";
-        public static string V97 {get; set;} = "Artist Ribbon";
-        public static string V99 {get; set;} = "Sinnoh Champion Ribbon";
-        public static string V100 {get; set;} = "Legend Ribbon";
-        public static string V104 {get; set;} = "Record Ribbon";
-        public static string V101 {get; set;} = "Missing Ribbons: {0}";
-        public static string V102 {get; set;} = "Invalid Ribbons: {0}";
-        public static string V103 {get; set;} = "All ribbons accounted for.";
-        public static string V105 {get; set;} = "Battle Memory Ribbon";
-        public static string V106 {get; set;} = "Contest Memory Ribbon";
-
         public static string V107 {get; set;} = "Ability is not valid for species/form.";
         public static string V108 {get; set;} = "Hidden Ability mismatch for encounter type.";
         public static string V223 {get; set;} = "Ability mismatch for encounter.";
@@ -374,7 +362,7 @@ namespace PKHeX.Core
         public static string V365 {get; set;} = "Incompatible evolution moves. {0} Move learned at a lower level than other {1} moves.";
         public static string V366 {get; set;} = "Incompatible evolution moves. {1} Move learned at a higher level than other {0} moves.";
         public static string V367 {get; set;} = "Individual EV for a level 100 encounter in Generation 4 cannot be greater than 100.";
-        public static string V368 {get; set;} = "Eggs can not be infected with Pokérus."; // Invalid
+        public static string V368 {get; set;} = "Eggs cannot be infected with Pokérus."; // Invalid
         public static string V369 {get; set;} = "Invalid E-Reader Berry.";
         public static string V370 {get; set;} = "Japanese E-Reader Berry in international savegame.";
         public static string V371 {get; set;} = "American E-Reader Berry in Japanese savegame.";
@@ -407,6 +395,18 @@ namespace PKHeX.Core
         public static string V410 {get; set;} = "Mystery Gift fixed PID mismatch.";
         public static string V411 {get; set;} = "Encounter Type PID mismatch.";
         public static string V412 {get; set;} = "Non-tradeback pre evolution move. Incompatible with Generation 1 exclusive moves.";
+        public static string V414 {get; set;} = "Eggs cannot have Shiny Leaf/Crown."; // Invalid
+        public static string V415 {get; set;} = "Eggs cannot have Pokéathlon stats."; // Invalid
+        public static string V416 {get; set;} = "Mystery Gift cannot be received by this version."; // Invalid
+        public static string V417 {get; set;} = "Suspicious Original Trainer details.";
+        public static string V418 {get; set;} = "Individual EV without changing EXP cannot be greater than {0}.";
+        public static string V419 {get; set;} = "Eggs cannot hold items.";
+        public static string V420 {get; set;} = "Eggs cannot have modified move PP counts.";
+
+        public static string V600 { get; set; } = "Invalid Ribbons: {0}";
+        public static string V601 { get; set; } = "Missing Ribbons: {0}";
+        public static string V602 { get; set; } = "All ribbons accounted for.";
+        public static string V603 { get; set; } = "Can't receive Ribbon(s) as an Egg.";
         #endregion
 
     }

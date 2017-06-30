@@ -332,6 +332,8 @@ namespace PKHeX.Core
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
+                if (pkm.WasEgg ^ e.EggEncounter)
+                    continue;
                 if (pkm.Gen3 && e.EggLocation != 0) // Gen3 Egg
                 {
                     if (pkm.Format == 3 && pkm.IsEgg && e.EggLocation != pkm.Met_Location)
@@ -856,7 +858,7 @@ namespace PKHeX.Core
 
                 if (!wc.IsEgg)
                 {
-                    if (wc.SID != pkm.SID) continue;
+                    if (wc.SID != -1 && wc.SID != pkm.SID) continue;
                     if (wc.TID != pkm.TID) continue;
                     if (wc.OT_Name != pkm.OT_Name) continue;
                     if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
@@ -869,7 +871,7 @@ namespace PKHeX.Core
                 {
                     if (pkm.IsNative)
                     {
-                        if (wc.Level != pkm.Met_Level)
+                        if (pkm.Met_Level != 0)
                             continue;
                     }
                     else
@@ -1181,10 +1183,14 @@ namespace PKHeX.Core
             
             int lvl = pkm.GenNumber < 4 ? 5 : 1;
             var ver = (GameVersion) pkm.Version; // version is a true indicator for all generation 3+ origins
-            yield return new EncounterEgg { Game = (GameVersion)pkm.Version, Level = lvl, Species = GetBaseSpecies(pkm, 0) };
+            int max = GetMaxSpeciesOrigin(pkm.GenNumber);
 
-            if (GetSplitBreedGeneration(pkm).Contains(pkm.Species))
-                yield return new EncounterEgg { Game = ver, Level = lvl, Species = GetBaseSpecies(pkm, 1), SplitBreed = true };
+            var baseSpecies = GetBaseSpecies(pkm, 0);
+            if (baseSpecies <= max)
+                yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies };
+
+            if (GetSplitBreedGeneration(pkm).Contains(pkm.Species) && (baseSpecies = GetBaseSpecies(pkm, 1)) <= max)
+                yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies, SplitBreed = true };
         }
 
         // Utility

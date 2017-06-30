@@ -252,10 +252,9 @@ namespace PKHeX.Core
         }
         private IEnumerable<string> GetStringMoves()
         {
-            var MoveLines = new List<string>();
             foreach (int move in Moves.Where(move => move != 0 && move < moves.Length))
             {
-                var str = "- " + moves[move];
+                var str = $"- {moves[move]}";
                 if (move == 237) // Hidden Power
                 {
                     int hp = 0;
@@ -265,9 +264,8 @@ namespace PKHeX.Core
                     hp /= 0x3F;
                     str += $" [{hptypes[hp]}]";
                 }
-                MoveLines.Add(str);
+                yield return str;
             }
-            return MoveLines;
         }
 
         public static string GetShowdownText(PKM pkm)
@@ -374,7 +372,7 @@ namespace PKHeX.Core
                 InvalidLines.Add("Unknown EV input.");
             for (int i = 0; i < evlist.Length / 2; i++)
             {
-               bool valid =  ushort.TryParse(evlist[i * 2 + 0], out ushort EV);
+                bool valid = ushort.TryParse(evlist[i * 2 + 0], out ushort EV);
                 int index = Array.IndexOf(StatNames, evlist[i * 2 + 1]);
                 if (valid && index > -1)
                     EVs[index] = EV;

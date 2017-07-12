@@ -40,29 +40,31 @@ namespace PKHeX.WinForms
             };
 
             // Enable Scrolling when hovered over
-            PAN_Box.MouseHover += (sender, args) =>
+            PAN_Box.MouseWheel += (sender, e) =>
             {
                 if (ActiveForm == this)
                     SCR_Box.Focus();
             };
             foreach (var slot in PKXBOXES)
             {
-                slot.MouseEnter += (sender, args) =>
+                slot.MouseWheel += (sender, e) =>
                 {
                     if (ActiveForm == this)
                         SCR_Box.Focus();
                 };
                 // Enable Click
-                slot.MouseClick += (sender, args) =>
+                slot.MouseClick += (sender, e) =>
                 {
                     if (ModifierKeys == Keys.Control)
-                        ClickView(sender, args);
+                        ClickView(sender, e);
                 };
             }
             
             Counter = L_Count.Text;
             Viewed = L_Viewed.Text;
             L_Viewed.Text = ""; // invis for now
+            var hover = new ToolTip();
+            L_Viewed.MouseEnter += (sender, e) => hover.SetToolTip(L_Viewed, L_Viewed.Text);
 
             ContextMenuStrip mnu = new ContextMenuStrip();
             ToolStripMenuItem mnuView = new ToolStripMenuItem("View");
@@ -291,7 +293,7 @@ namespace PKHeX.WinForms
                         if (!gift.GetType().HasPropertyAll(cmd.PropertyName))
                             return false;
                         try { if (ReflectUtil.IsValueEqual(gift, cmd.PropertyName, cmd.PropertyValue) == cmd.Evaluator) continue; }
-                        catch { Console.WriteLine($"Unable to compare {cmd.PropertyName} to {cmd.PropertyValue}."); }
+                        catch { Debug.WriteLine($"Unable to compare {cmd.PropertyName} to {cmd.PropertyValue}."); }
                         return false;
                     }
                     return true;

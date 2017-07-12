@@ -448,7 +448,7 @@ namespace PKHeX.Core
         public bool Gen2_NotTradeback => TradebackStatus == TradebackType.Gen2_NotTradeback;
         public virtual bool WasLink => false;
         private bool _WasEgg;
-        public virtual bool WasEgg
+        public bool WasEgg
         {
             get
             {
@@ -456,8 +456,8 @@ namespace PKHeX.Core
                 {
                     case 4: return Legal.EggLocations4.Contains(Egg_Location) || (Species == 490 && Egg_Location == 3001) || (Egg_Location == 3002 && PtHGSS); // faraway
                     case 5: return Legal.EggLocations5.Contains(Egg_Location);
-                    case 6: 
-                    case 7: return Legal.EggLocations.Contains(Egg_Location);
+                    case 6: return Legal.EggLocations6.Contains(Egg_Location);
+                    case 7: return Legal.EggLocations7.Contains(Egg_Location);
                 }
                 // Gen 1/2 and pal park Gen 3
                 return _WasEgg;
@@ -846,6 +846,7 @@ namespace PKHeX.Core
             var pk = new CK3();
             TransferPropertiesWithReflection(this, pk);
             pk.SetStats(GetStats(PersonalTable.RS[pk.Species]));
+            pk.Stat_Level = pk.CurrentLevel;
             return pk;
         }
         /// <summary>
@@ -861,6 +862,7 @@ namespace PKHeX.Core
             var pk = new XK3();
             TransferPropertiesWithReflection(this, pk);
             pk.SetStats(GetStats(PersonalTable.RS[pk.Species]));
+            pk.Stat_Level = pk.CurrentLevel;
             return pk;
         }
         /// <summary>
@@ -895,6 +897,10 @@ namespace PKHeX.Core
                 if (prop != null)
                     ReflectUtil.SetValue(Destination, property, prop);
             }
+
+            // Transferring XK3 to PK3 when it originates from XD sets the fateful encounter (obedience) flag.
+            if (Source is XK3 xk3 && xk3.Version == 15 && new LegalityAnalysis(xk3).Info.WasXD)
+                Destination.FatefulEncounter = true;
         }
 
         /// <summary>

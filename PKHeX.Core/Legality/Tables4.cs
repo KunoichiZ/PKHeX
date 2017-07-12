@@ -224,12 +224,11 @@ namespace PKHeX.Core
         {
             24, // Route 209 (Lost Tower)
             50, // Mt Coronet
-            70, // Old Chateau
             84, // Stark Mountain
         };
         internal static readonly int[] DPPt_MtCoronetExteriorEncounters =
         {
-            4, 5
+            4, 5, 70
         };
         internal static readonly int[] HGSS_CaveLocations =
         {

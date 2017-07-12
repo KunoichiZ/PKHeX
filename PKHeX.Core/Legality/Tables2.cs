@@ -52,6 +52,12 @@ namespace PKHeX.Core
         {
             424,429,430,461,462,463,464,465,466,467,468,469,470,471,472,473,474,700
         };
+        internal static readonly int[] Roaming_MetLocation_GSC_Grass =
+        {
+            // Routes 29, 30-31, 33, 34, 35, 36-37, 38-39, 42, 43, 44, 45-46 can be encountered in grass
+            2, 4, 5, 8, 11, 15, 18, 20, 21,
+            25, 26, 34, 37, 39, 43, 45,
+        };
 
         internal static readonly EncounterArea[] EncounterBCC_GSC = { new EncounterArea {
             Location = 19,
@@ -69,6 +75,24 @@ namespace PKHeX.Core
                 new EncounterSlot1 {Species = 127, LevelMin = 13, LevelMax = 14, Rate = 05, SlotNumber = 9}, // Pinsir
             }
         }};
+
+        internal static readonly EncounterArea[] EncounterSafari_GSC = { new EncounterArea {
+            Location = 81,
+            Slots = new EncounterSlot[]
+            {
+                new EncounterSlot1 {Species = 129, LevelMin = 10, LevelMax = 10, Type = SlotType.Old_Rod_Safari}, // Magikarp
+                new EncounterSlot1 {Species = 098, LevelMin = 10, LevelMax = 10, Type = SlotType.Old_Rod_Safari}, // Krabby
+                new EncounterSlot1 {Species = 098, LevelMin = 20, LevelMax = 20, Type = SlotType.Good_Rod_Safari}, // Krabby
+                new EncounterSlot1 {Species = 129, LevelMin = 20, LevelMax = 20, Type = SlotType.Good_Rod_Safari}, // Magikarp
+                new EncounterSlot1 {Species = 222, LevelMin = 20, LevelMax = 20, Type = SlotType.Good_Rod_Safari}, // Corsola
+                new EncounterSlot1 {Species = 120, LevelMin = 20, LevelMax = 20, Type = SlotType.Good_Rod_Safari}, // Staryu
+                new EncounterSlot1 {Species = 098, LevelMin = 40, LevelMax = 40, Type = SlotType.Super_Rod_Safari}, // Krabby
+                new EncounterSlot1 {Species = 222, LevelMin = 40, LevelMax = 40, Type = SlotType.Super_Rod_Safari}, // Corsola
+                new EncounterSlot1 {Species = 120, LevelMin = 40, LevelMax = 40, Type = SlotType.Super_Rod_Safari}, // Staryu
+                new EncounterSlot1 {Species = 121, LevelMin = 40, LevelMax = 40, Type = SlotType.Super_Rod_Safari}, // Kingler
+            }
+        }};
+
         internal static readonly EncounterStatic[] Encounter_GSC_Common =
         {
             new EncounterStatic { Species = 152, Level = 05, Location = 001, Version = GameVersion.GSC }, // Chikorita @ New Bark Town
@@ -140,9 +164,16 @@ namespace PKHeX.Core
             new EncounterStatic { Species = 202, Level = 15, Location = 016, Version = GameVersion.C }, // Wobbuffet @ Goldenrod City (Game Corner)
         };
 
-        internal static readonly EncounterStatic[] Encounter_GS = Encounter_GSC_Common.Concat(Encounter_GS_Exclusive).ToArray();
-        internal static readonly EncounterStatic[] Encounter_C = Encounter_GSC_Common.Concat(Encounter_C_Exclusive).ToArray();
-        internal static readonly EncounterStatic[] Encounter_GSC = Encounter_GSC_Common.Concat(Encounter_GS_Exclusive).Concat(Encounter_C_Exclusive).ToArray();
+        internal static readonly EncounterStatic[] Encounter_GSC_Roam =
+        {
+            new EncounterStatic { Species = 243, Level = 40, Roaming = true }, // Raikou
+            new EncounterStatic { Species = 244, Level = 40, Roaming = true }, // Entei
+            new EncounterStatic { Species = 245, Level = 40, Roaming = true, Version = GameVersion.GS }, // Suicune
+        };
+
+        internal static readonly EncounterStatic[] Encounter_GS = Encounter_GSC_Common.Concat(Encounter_GS_Exclusive).Concat(Encounter_GSC_Roam.SelectMany(e => e.Clone(Roaming_MetLocation_GSC_Grass))).ToArray();
+        internal static readonly EncounterStatic[] Encounter_C = Encounter_GSC_Common.Concat(Encounter_C_Exclusive).Concat(Encounter_GSC_Roam.Take(2).SelectMany(e => e.Clone(Roaming_MetLocation_GSC_Grass))).ToArray();
+        internal static readonly EncounterStatic[] Encounter_GSC = Encounter_GSC_Common.Concat(Encounter_GS_Exclusive).Concat(Encounter_C_Exclusive).Concat(Encounter_GSC_Roam.SelectMany(e => e.Clone(Roaming_MetLocation_GSC_Grass))).ToArray();
 
         internal static readonly EncounterTrade[] TradeGift_GSC =
         {

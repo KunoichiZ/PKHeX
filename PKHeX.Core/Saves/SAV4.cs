@@ -188,11 +188,11 @@ namespace PKHeX.Core
                     OFS_PouchHeldItem = 0x624 + GBO;
                     OFS_PouchKeyItem = 0x8B8 + GBO;
                     OFS_PouchTMHM = 0x980 + GBO;
+                    OFS_MailItems = 0xB10 + GBO;
                     OFS_PouchMedicine = 0xB40 + GBO;
                     OFS_PouchBerry = 0xBE0 + GBO;
                     OFS_PouchBalls = 0xCE0 + GBO;
                     OFS_BattleItems = 0xD1C + GBO;
-                    OFS_MailItems = 0xD50 + GBO;
                     LegalItems = Legal.Pouch_Items_DP;
                     LegalKeyItems = Legal.Pouch_Key_DP;
                     LegalTMHMs = Legal.Pouch_TMHM_DP;
@@ -208,6 +208,8 @@ namespace PKHeX.Core
                     Daycare = 0x141C + GBO;
                     OFS_HONEY = 0x72E4 + GBO;
                     Box = 0xC104 + SBO;
+
+                    _currentPoketchApp = 0x114E;
                     break;
                 case GameVersion.Pt:
                     AdventureInfo = 0 + GBO;
@@ -240,6 +242,8 @@ namespace PKHeX.Core
                     Daycare = 0x1654 + GBO;
                     OFS_HONEY = 0x7F38 + GBO;
                     Box = 0xCF30 + SBO;
+
+                    _currentPoketchApp = 0x1162;
                     break;
                 case GameVersion.HGSS:
                     AdventureInfo = 0 + GBO;
@@ -506,7 +510,8 @@ namespace PKHeX.Core
         }
         public override int SecondsToStart { get => BitConverter.ToInt32(Data, AdventureInfo + 0x34); set => BitConverter.GetBytes(value).CopyTo(Data, AdventureInfo + 0x34); }
         public override int SecondsToFame { get => BitConverter.ToInt32(Data, AdventureInfo + 0x3C); set => BitConverter.GetBytes(value).CopyTo(Data, AdventureInfo + 0x3C); }
-        public int CurrentPoketchApp { get => Data[0x1162]; set => Data[0x1162] = (byte)Math.Min(24, value); /* Alarm Clock */ }
+        public int CurrentPoketchApp { get => Data[_currentPoketchApp]; set => Data[_currentPoketchApp] = (byte)Math.Min(24, value); /* Alarm Clock */ }
+        private int _currentPoketchApp;
 
         // Storage
         public override int CurrentBox
@@ -789,27 +794,29 @@ namespace PKHeX.Core
             // Check if already Seen
             if ((Data[ofs + brSize * 1] & mask) == 0) // Not seen
             {
+                Data[ofs + brSize * 1] |= mask; // Set seen
                 int gr = pkm.PersonalInfo.Gender;
                 switch (gr)
                 {
                     case 255: // Genderless
                     case 0: // Male Only
-                        Data[ofs + brSize * 1] &= mask;
                         Data[ofs + brSize * 2] &= mask;
+                        Data[ofs + brSize * 3] &= mask;
                         break;
                     case 254: // Female Only
-                        Data[ofs + brSize * 1] |= mask;
                         Data[ofs + brSize * 2] |= mask;
+                        Data[ofs + brSize * 3] |= mask;
                         break;
                     default: // Male or Female
-                        bool m = (Data[ofs + brSize * 1] & mask) != 0;
-                        bool f = (Data[ofs + brSize * 2] & mask) != 0;
-                        if (!(m || f)) // Add both forms (not a single form == 00 or 11).
-                        {
-                            int gender = pkm.Gender & 1;
-                            gender ^= 1; // Set OTHER gender seen bit so it appears second
-                            Data[ofs + brSize * (1 + gender)] |= mask;
-                        }
+                        bool m = (Data[ofs + brSize * 2] & mask) != 0;
+                        bool f = (Data[ofs + brSize * 3] & mask) != 0;
+                        if (m || f) // bit already set?
+                            break;
+                        int gender = pkm.Gender & 1;
+                        Data[ofs + brSize * 2] &= (byte)~mask; // unset
+                        Data[ofs + brSize * 3] &= (byte)~mask; // unset
+                        gender ^= 1; // Set OTHER gender seen bit so it appears second
+                        Data[ofs + brSize * (2 + gender)] |= mask;
                         break;
                 }
             }

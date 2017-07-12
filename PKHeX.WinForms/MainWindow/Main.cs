@@ -130,8 +130,8 @@ namespace PKHeX.WinForms
             C_SAV.PKME_Tabs = PKME_Tabs;
             C_SAV.Menu_Redo = Menu_Redo;
             C_SAV.Menu_Undo = Menu_Undo;
-            dragout.GiveFeedback += (sender, e) => { e.UseDefaultCursors = false; };
-            GiveFeedback += (sender, e) => { e.UseDefaultCursors = false; };
+            dragout.GiveFeedback += (sender, e) => e.UseDefaultCursors = false;
+            GiveFeedback += (sender, e) => e.UseDefaultCursors = false;
             PKME_Tabs.EnableDragDrop(Main_DragEnter, Main_DragDrop);
             C_SAV.EnableDragDrop(Main_DragEnter, Main_DragDrop);
 
@@ -595,7 +595,7 @@ namespace PKHeX.WinForms
             }
             
             PKME_Tabs.PopulateFields(pk);
-            Console.WriteLine(c);
+            Debug.WriteLine(c);
             return true;
         }
         private bool TryLoadPCBoxBin(byte[] input)
@@ -619,7 +619,7 @@ namespace PKHeX.WinForms
             BattleVideo b = BattleVideo.GetVariantBattleVideo(input);
             bool result = C_SAV.OpenBattleVideo(b, out string c);
             WinFormsUtil.Alert(c);
-            Console.WriteLine(c);
+            Debug.WriteLine(c);
             return result;
         }
         private bool TryLoadMysteryGift(byte[] input, string path, string ext)
@@ -643,7 +643,7 @@ namespace PKHeX.WinForms
             }
 
             PKME_Tabs.PopulateFields(pk);
-            Console.WriteLine(c);
+            Debug.WriteLine(c);
             return true;
         }
 
@@ -855,6 +855,8 @@ namespace PKHeX.WinForms
                         $"Generation {sav.Generation} Save File detected. Allow tradebacks from Generation 2 for legality purposes?",
                         "Yes: Allow Generation 2 tradeback learnsets" + Environment.NewLine +
                         "No: Don't allow Generation 2 tradeback learnsets");
+                    if (drTradeback == DialogResult.Cancel)
+                        return false;
                     Legal.AllowGen1Tradeback = drTradeback == DialogResult.Yes;
                 }
                 else
@@ -900,7 +902,17 @@ namespace PKHeX.WinForms
                 var dialog = new SAV_GameSelect(games);
                 dialog.ShowDialog();
 
-                sav.Personal = dialog.Result == GameVersion.FR ? PersonalTable.FR : PersonalTable.LG;
+                switch (dialog.Result)
+                {
+                    case GameVersion.FR:
+                        sav.Personal = PersonalTable.FR;
+                        break;
+                    case GameVersion.LG:
+                        sav.Personal = PersonalTable.LG;
+                        break;
+                    default:
+                        return false;
+                }
             }
 
             return true;
@@ -964,19 +976,23 @@ namespace PKHeX.WinForms
         {
             if (ModifierKeys == Keys.Alt)
             {
-                if (Clipboard.ContainsText())
-                    ClickShowdownImportPKM(sender, e);
-                else
-                    ImportQRToTabs();
+                string url = Clipboard.GetText();
+                if (!string.IsNullOrWhiteSpace(url))
+                {
+                    if (!url.StartsWith("http") || url.Contains('\n'))
+                        ClickShowdownImportPKM(sender, e);
+                    else
+                        ImportQRToTabs(url);
+                    return;
+                }
             }
-            else
-                ExportQRFromTabs();
+            ExportQRFromTabs();
         }
 
-        private void ImportQRToTabs()
+        private void ImportQRToTabs(string url)
         {
             // Fetch data from QR code...
-            byte[] ekx = QR.GetQRData();
+            byte[] ekx = QR.GetQRData(url);
             if (ekx == null)
                 return;
 

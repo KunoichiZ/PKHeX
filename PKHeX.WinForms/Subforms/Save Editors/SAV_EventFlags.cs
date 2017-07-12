@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -175,7 +176,7 @@ namespace PKHeX.WinForms
                     AutoSize = true
                 };
                 chk.CheckStateChanged += ToggleFlag;
-                lbl.Click += (sender, e) => { chk.Checked ^= true; };
+                lbl.Click += (sender, e) => chk.Checked ^= true;
                 TLP_Flags.Controls.Add(chk, 0, i);
                 TLP_Flags.Controls.Add(lbl, 1, i);
             }
@@ -245,12 +246,13 @@ namespace PKHeX.WinForms
                     ValueMember = "Value",
                     DisplayMember = "Text",
                     Margin = Padding.Empty,
-                    Width = 80,
+                    Width = 150,
                     Name = constCBTag + num[i].ToString("0000"),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     BindingContext = BindingContext,
                     DataSource = map,
-                    SelectedIndex = 0
+                    SelectedIndex = 0,
+                    DropDownWidth = Width + 100
                 };
                 cb.SelectedValueChanged += ToggleConst;
                 mtb.TextChanged += ToggleConst;
@@ -418,7 +420,7 @@ namespace PKHeX.WinForms
             catch (Exception e)
             {
                 WinFormsUtil.Error("An unexpected error has occurred.", e);
-                Console.Write(e);
+                Debug.WriteLine(e);
             }
             TB_IsSet.Text = tbIsSet;
             TB_UnSet.Text = tbUnSet;
@@ -438,7 +440,7 @@ namespace PKHeX.WinForms
             catch (Exception e)
             {
                 WinFormsUtil.Error("An unexpected error has occurred.", e);
-                Console.Write(e);
+                Debug.WriteLine(e);
             }
 
             if (string.IsNullOrEmpty(r))

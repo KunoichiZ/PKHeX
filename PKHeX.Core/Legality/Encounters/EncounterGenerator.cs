@@ -262,8 +262,6 @@ namespace PKHeX.Core
             if (!safari)
             foreach (var z in GetValidStaticEncounter(pkm))
                 yield return z;
-            foreach (var z in GetValidFriendSafari(pkm))
-                yield return z;
             foreach (var z in GetValidWildEncounters(pkm))
                 yield return z;
             foreach (var z in GetValidEncounterTrades(pkm))
@@ -332,7 +330,7 @@ namespace PKHeX.Core
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
-                if (pkm.WasEgg ^ e.EggEncounter)
+                if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0)
                     continue;
                 if (pkm.Gen3 && e.EggLocation != 0) // Gen3 Egg
                 {
@@ -418,7 +416,10 @@ namespace PKHeX.Core
                         if (e.Species == 054 && !japanese && catch_rate != 168)
                             continue;
                     }
-                    else if (catch_rate != PersonalTable.RB[e.Species].CatchRate && catch_rate != PersonalTable.Y[e.Species].CatchRate)
+                    // Encounters with different catch rates in yellow and redblue are duplicated with different gameverion
+                    else if (e.Version == GameVersion.YW && catch_rate != PersonalTable.Y[e.Species].CatchRate)
+                        continue;
+                    else if (e.Version != GameVersion.YW && catch_rate != PersonalTable.RB[e.Species].CatchRate)
                         continue;
                 }
 
@@ -459,16 +460,19 @@ namespace PKHeX.Core
         }
 
         // EncounterSlot
-        private static IEnumerable<EncounterSlot> GetRawEncounterSlots(PKM pkm, GameVersion gameSource = GameVersion.Any)
+        private static IEnumerable<EncounterSlot> GetRawEncounterSlots(PKM pkm, int lvl, GameVersion gameSource = GameVersion.Any)
         {
-            return GetEncounterAreas(pkm, gameSource).SelectMany(area => GetValidEncounterSlots(pkm, area, DexNav: pkm.AO, gameSource: gameSource));
+            return GetEncounterAreas(pkm, gameSource).SelectMany(area => GetValidEncounterSlots(pkm, area, DexNav: pkm.AO, lvl: lvl, gameSource: gameSource));
         }
         private static IEnumerable<EncounterSlot> GetValidWildEncounters(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion)pkm.Version;
 
-            var s = GetRawEncounterSlots(pkm, gameSource);
+            int lvl = GetMinLevelEncounter(pkm);
+            if (lvl <= 0)
+                yield break;
+            var s = GetRawEncounterSlots(pkm, lvl, gameSource);
             bool IsSafariBall = pkm.Ball == 5;
             bool IsSportsBall = pkm.Ball == 0x18;
             bool IsHidden = pkm.AbilityNumber == 4; // hidden Ability
@@ -479,11 +483,13 @@ namespace PKHeX.Core
             var deferred = new List<EncounterSlot>();
             foreach (EncounterSlot slot in s)
             {
+                // check for petty rejection scenarios that will be flagged by other legality checks
+                // defer these edge case scenarios in the event that a later encounter ends up passing
                 if (slot.Species == 265 && species != 265 && !IsWurmpleEvoValid(pkm)) { } // bad wurmple evolution
                 else if (IsHidden ^ IsHiddenAbilitySlot(slot)) { } // ability mismatch
                 else if (IsSafariBall ^ IsSafariSlot(slot.Type)) { } // Safari Zone only ball
                 else if (IsSportsBall ^ slot.Type == SlotType.BugContest) { } // BCC only ball
-                else if (CheckEncounterType && !slot.TypeEncounter.Contains(pkm.EncounterType)) { } // mismatch
+                else if (CheckEncounterType && !slot.TypeEncounter.Contains(pkm.EncounterType)) { } // incorrect encounter type
                 else
                 {
                     yield return slot;
@@ -516,50 +522,31 @@ namespace PKHeX.Core
                 };
             }
         }
-        private static IEnumerable<EncounterSlot> GetValidEncounterSlots(PKM pkm, EncounterArea loc, bool DexNav, bool ignoreLevel = false, GameVersion gameSource = GameVersion.Any)
+        private static IEnumerable<EncounterSlot> GetValidEncounterSlots(PKM pkm, EncounterArea loc, bool DexNav, int lvl = -1, bool ignoreLevel = false, GameVersion gameSource = GameVersion.Any)
         {
-            int fluteBoost = pkm.Format < 3 ? 0 : 4;
+            if (lvl < 0)
+                lvl = GetMinLevelEncounter(pkm);
+            if (lvl <= 0)
+                yield break;
+
+            int gen = pkm.GenNumber;
+            int fluteBoost = gen < 3 ? 0 : 4;
             const int dexnavBoost = 30;
 
             int df = DexNav ? fluteBoost : 0;
             int dn = DexNav ? fluteBoost + dexnavBoost : 0;
-            List<EncounterSlot> slotdata = new List<EncounterSlot>();
 
             var maxspeciesorigin = -1;
             if (gameSource == GameVersion.RBY) maxspeciesorigin = MaxSpeciesID_1;
-            if (GameVersion.GSC.Contains(gameSource)) maxspeciesorigin = MaxSpeciesID_2;
+            else if (GameVersion.GSC.Contains(gameSource)) maxspeciesorigin = MaxSpeciesID_2;
 
             // Get Valid levels
             IEnumerable<DexLevel> vs = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: ignoreLevel ? 100 : -1, skipChecks: ignoreLevel);
+            if (!FilterGBSlotsCatchRate(pkm, ref vs, out GameVersion Gen1Version, out bool RBDragonair))
+                yield break;
 
-            bool IsRGBKadabra = false;
-            if (pkm.Format == 1 && pkm.Gen1_NotTradeback)
-            {
-                // Pure gen 1, slots can be filter by catch rate
-                if ((pkm.Species == 25 || pkm.Species == 26) && (pkm as PK1).Catch_Rate == 163)
-                    // Yellow Pikachu, is not a wild encounter
-                    return slotdata;
-                if ((pkm.Species == 64 || pkm.Species == 65) && (pkm as PK1).Catch_Rate == 96)
-                    // Yellow Kadabra, ignore Abra encounters
-                    vs = vs.Where(s => s.Species == 64);
-                if ((pkm.Species == 148 || pkm.Species == 149) && (pkm as PK1).Catch_Rate == 27)
-                    // Yellow Dragonair, ignore Dratini encounters
-                    vs = vs.Where(s => s.Species == 148);
-                else
-                {
-                    IsRGBKadabra = (pkm.Species == 64 || pkm.Species == 65) && (pkm as PK1).Catch_Rate == 100;
-                    vs = vs.Where(s => (pkm as PK1).Catch_Rate == PersonalTable.RB[s.Species].CatchRate);
-                }
-            }
-
-            // Get slots where pokemon can exist
-            bool ignoreSlotLevel = ignoreLevel;
-            IEnumerable<EncounterSlot> slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && (ignoreSlotLevel || evo.Level >= slot.LevelMin - df)));
-
-            int lvl = GetMinLevelEncounter(pkm);
-            if (lvl <= 0)
-                return slotdata;
-            int gen = pkm.GenNumber;
+            // Get slots where pokemon can exist with respect to the evolution chain
+            IEnumerable<EncounterSlot> slots = loc.Slots.Where(slot => vs.Any(evo => evo.Species == slot.Species && (ignoreLevel || evo.Level >= slot.LevelMin - df)));
 
             List<EncounterSlot> encounterSlots;
             if (ignoreLevel)
@@ -571,48 +558,39 @@ namespace PKHeX.Core
 
             if (gen <= 2)
             {
-                if (IsRGBKadabra)
-                    //Red Kadabra slots : Level 49 and 51 in RGB, but level 20 and 27 in Yellow
-                    encounterSlots = encounterSlots.Where(slot => slot.LevelMin >= 49).ToList();
-
-                // For gen 1 and 2 return Minimum level slot
-                // Minimum level is needed to check available moves, because there is no move reminder in gen 1,
-                // There are moves in the level up table that cant be legally obtained
-                EncounterSlot slotMin = encounterSlots.OrderBy(slot => slot.LevelMin).FirstOrDefault();
-                if (slotMin != null)
-                    slotdata.Add(slotMin);
-                return slotdata;
+                var gbslots = FilterGBSlots(pkm, gen, Gen1Version, encounterSlots, RBDragonair);
+                foreach (var s in gbslots.OrderBy(slot => slot.LevelMin))
+                    yield return s;
+                yield break;
             }
 
             // Pressure Slot
             EncounterSlot slotMax = encounterSlots.OrderByDescending(slot => slot.LevelMax).FirstOrDefault();
-            if (slotMax != null)
-            {
-                slotMax = slotMax.Clone();
-                slotMax.Permissions.Pressure = true;
-                slotMax.Form = pkm.AltForm;
-            }
 
             if (gen >= 6 && !DexNav)
             {
-                // Filter for Form Specific
-                slotdata.AddRange(WildForms.Contains(pkm.Species)
+                var slotdata = WildForms.Contains(pkm.Species)
                     ? encounterSlots.Where(slot => slot.Form == pkm.AltForm)
-                    : encounterSlots);
+                    : encounterSlots;
+
+                foreach (var z in slotdata)
+                    yield return z;
+
+                // Filter for Form Specific
                 if (slotMax != null)
-                    slotdata.Add(slotMax);
-                return slotdata;
+                    yield return getPressureSlot(slotMax);
+                yield break;
             }
 
-            List<EncounterSlot> eslots = encounterSlots.Where(slot => !WildForms.Contains(pkm.Species) || slot.Form == pkm.AltForm).ToList();
+            IEnumerable<EncounterSlot> formMatchSlots = encounterSlots.Where(slot => !WildForms.Contains(pkm.Species) || slot.Form == pkm.AltForm);
             if (gen <= 5)
             {
-                slotdata.AddRange(eslots);
-                return slotdata;
+                foreach (var z in formMatchSlots)
+                    yield return z;
+                yield break;
             }
-            if (slotMax != null)
-                eslots.Add(slotMax);
-            foreach (EncounterSlot s in eslots)
+
+            foreach (EncounterSlot s in formMatchSlots)
             {
                 bool nav = s.Permissions.AllowDexNav && (pkm.RelearnMove1 != 0 || pkm.AbilityNumber == 4);
                 EncounterSlot slot = s.Clone();
@@ -624,11 +602,91 @@ namespace PKHeX.Core
                     slot.Permissions.BlackFlute = true;
                 if (slot.LevelMax != lvl && slot.Permissions.AllowDexNav)
                     slot.Permissions.DexNav = true;
-                slotdata.Add(slot);
+                yield return slot;
             }
-            return slotdata;
-        }
+            if (slotMax != null)
+                yield return getPressureSlot(slotMax);
 
+            EncounterSlot getPressureSlot(EncounterSlot s)
+            {
+                var max = s.Clone();
+                max.Permissions.Pressure = true;
+                max.Form = pkm.AltForm;
+                return max;
+            }
+        }
+        private static bool FilterGBSlotsCatchRate(PKM pkm, ref IEnumerable<DexLevel> vs, out GameVersion Gen1Version, out bool RBDragonair)
+        {
+            RBDragonair = false;
+            Gen1Version = GameVersion.RBY;
+            if (!(pkm is PK1 pk1) || !pkm.Gen1_NotTradeback)
+                return true;
+
+            // Pure gen 1, slots can be filter by catch rate
+            switch (pkm.Species)
+            {
+                // Pikachu
+                case 25 when pk1.Catch_Rate == 163:
+                case 26 when pk1.Catch_Rate == 163:
+                    return false; // Yellow Pikachu is not a wild encounter
+
+                // Kadabra (YW)
+                case 64 when pk1.Catch_Rate == 96:
+                case 65 when pk1.Catch_Rate == 96:
+                    vs = vs.Where(s => s.Species == 64);
+                    Gen1Version = GameVersion.YW;
+                    return true;
+
+                // Kadabra (RB)
+                case 64 when pk1.Catch_Rate == 100:
+                case 65 when pk1.Catch_Rate == 100:
+                    vs = vs.Where(s => s.Species == 64);
+                    Gen1Version = GameVersion.RB;
+                    return true;
+
+                // Dragonair (YW)
+                case 148 when pk1.Catch_Rate == 27:
+                case 149 when pk1.Catch_Rate == 27:
+                    vs = vs.Where(s => s.Species == 148); // Yellow Dragonair, ignore Dratini encounters
+                    Gen1Version = GameVersion.YW;
+                    return true;
+                
+                // Dragonair (RB)
+                case 148:
+                case 149:
+                    // Red blue dragonair have the same catch rate as dratini, it could also be a dratini from any game
+                    vs = vs.Where(s => pk1.Catch_Rate == PersonalTable.RB[s.Species].CatchRate);
+                    RBDragonair = true;
+                    return true;
+
+                default:
+                    vs = vs.Where(s => pk1.Catch_Rate == PersonalTable.RB[s.Species].CatchRate);
+                    return true;
+            }
+        }
+        private static IEnumerable<EncounterSlot> FilterGBSlots(PKM pkm, int gen, GameVersion Gen1Version, IEnumerable<EncounterSlot> slots, bool RBDragonair)
+        {
+            switch (gen)
+            {
+                case 1:
+                    if (Gen1Version != GameVersion.RBY)
+                        slots = slots.Where(slot => Gen1Version.Contains(((EncounterSlot1)slot).Version));
+
+                    // Red Blue dragonair or dratini from any gen 1 games
+                    if (RBDragonair)
+                        return slots.Where(slot => GameVersion.RB.Contains(((EncounterSlot1)slot).Version) || slot.Species == 147);
+
+                    return slots;
+
+                case 2:
+                    if (pkm is PK2 pk2 && pk2.Met_Day != 0)
+                        slots = slots.Where(slot => ((EncounterSlot1)slot).Time.Contains(pk2.Met_Day));
+                    return slots;
+
+                default:
+                    return slots;
+            }
+        }
         private static IEnumerable<EncounterArea> GetEncounterSlots(PKM pkm, int lvl = -1, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
@@ -742,10 +800,18 @@ namespace PKHeX.Core
 
                 // Even if the in game trade uses the tables with source pokemon allowing generation 2 games, the traded pokemon could be a non-tradeback pokemon
                 var rate = (pkm as PK1)?.Catch_Rate;
-                if (z is EncounterTradeCatchRate r && rate != r.Catch_Rate)
-                    continue;
-                if (rate != PersonalTable.RB[z.Species].CatchRate && rate != PersonalTable.Y[z.Species].CatchRate)
-                    continue;
+                if (z is EncounterTradeCatchRate r )
+                {
+                    if (rate != r.Catch_Rate)
+                        continue;
+                }
+                else
+                {
+                    if (z.Version == GameVersion.YW && rate != PersonalTable.Y[z.Species].CatchRate)
+                        continue;
+                    if (z.Version != GameVersion.YW && rate != PersonalTable.RB[z.Species].CatchRate)
+                        continue;
+                }
 
                 yield return z;
             }
@@ -856,34 +922,33 @@ namespace PKHeX.Core
                 if (wc.Version != 0 && !((GameVersion)wc.Version).Contains((GameVersion)pkm.Version))
                     continue;
 
-                if (!wc.IsEgg)
+                bool hatchedEgg = wc.IsEgg && !pkm.IsEgg;
+                if (!hatchedEgg)
                 {
                     if (wc.SID != -1 && wc.SID != pkm.SID) continue;
-                    if (wc.TID != pkm.TID) continue;
-                    if (wc.OT_Name != pkm.OT_Name) continue;
+                    if (wc.TID != -1 && wc.TID != pkm.TID) continue;
+                    if (wc.OT_Name != null && wc.OT_Name != pkm.OT_Name) continue;
                     if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
-                    if (wc.Language != 0 && wc.Language != pkm.Language) continue;
+                }
 
-                    if (wc.Met_Location != pkm.Met_Location && pkm.HasOriginalMetLocation)
+                if (wc.Language != -1 && wc.Language != pkm.Language) continue;
+                if (wc.Ball != pkm.Ball) continue;
+                if (wc.Fateful != pkm.FatefulEncounter) continue;
+
+                if (pkm.IsNative)
+                {
+                    if (wc.Met_Level != pkm.Met_Level)
+                        continue;
+                    if (wc.Met_Location != pkm.Met_Location && (!wc.IsEgg || pkm.IsEgg))
                         continue;
                 }
-                else if (wc.IsEgg)
+                else
                 {
-                    if (pkm.IsNative)
-                    {
-                        if (pkm.Met_Level != 0)
-                            continue;
-                    }
-                    else
-                    {
-                        if (wc.Level > pkm.Met_Level)
-                            continue;
-                        if (pkm.IsEgg)
-                            continue;
-                    }
+                    if (pkm.IsEgg)
+                        break;
+                    if (wc.Level > pkm.Met_Level)
+                        continue;
                 }
-                
-                if (wc.Ball != pkm.Ball) continue;
 
                 // Some checks are best performed separately as they are caused by users screwing up valid data.
                 // if (wc.Level > pkm.CurrentLevel) continue; // Defer to level legality
@@ -899,16 +964,12 @@ namespace PKHeX.Core
         }
         private static IEnumerable<MysteryGift> GetMatchingPCD(PKM pkm, IEnumerable<MysteryGift> DB)
         {
-            if (DB == null)
+            if (DB == null || pkm.IsEgg && pkm.Format != 4) // transferred
                 yield break;
 
-            if (pkm.Species == 490 && (pkm.WasEgg || pkm.IsEgg)) // Manaphy
+            if (IsRangerManaphy(pkm))
             {
-                if (pkm.IsEgg && pkm.Format != 4) // transferred
-                    yield break;
-                int loc = pkm.IsEgg ? pkm.Met_Location : pkm.Egg_Location;
-                if (loc == 2002 || loc == 3001) // Link Trade Egg || Ranger
-                    yield return new PGT { Data = { [0] = 7, [8] = 1 } };
+                yield return new PGT { Data = { [0] = 7, [8] = 1 } };
                 yield break;
             }
 
@@ -1194,6 +1255,18 @@ namespace PKHeX.Core
         }
 
         // Utility
+        private static bool IsRangerManaphy(PKM pkm)
+        {
+            var egg = pkm.Egg_Location;
+            const int ranger = 3001;
+            const int linkegg = 2002;
+            if (!pkm.IsEgg) // Link Trade Egg or Ranger
+                return egg == linkegg || egg == ranger;
+            if (egg != ranger)
+                return false;
+            var met = pkm.Met_Location;
+            return met == linkegg || met == 0;
+        }
         private static bool IsHiddenAbilitySlot(EncounterSlot slot)
         {
             return slot.Permissions.DexNav || slot.Type == SlotType.FriendSafari || slot.Type == SlotType.Horde || slot.Type == SlotType.SOS;
@@ -1228,12 +1301,14 @@ namespace PKHeX.Core
             switch (pkm.GenNumber)
             {
                 case 1:
-                    return GetRBYStaticTransfer(species);
+                    return GetRBYStaticTransfer(species, pkm.Met_Level);
+                case 2:
+                    return GetGSStaticTransfer(species, pkm.Met_Level);
                 default:
                     return GetStaticEncounters(pkm, 100).OrderBy(s => s.Level).FirstOrDefault();
             }
         }
-        internal static EncounterStatic GetRBYStaticTransfer(int species)
+        internal static EncounterStatic GetRBYStaticTransfer(int species, int pkmMetLevel)
         {
             return new EncounterStatic
             {
@@ -1245,10 +1320,11 @@ namespace PKHeX.Core
                 Location = 30013,
                 EggLocation = 0,
                 IV3 = true,
+                Level = pkmMetLevel,
                 Version = GameVersion.RBY
             };
         }
-        internal static EncounterStatic GetGSStaticTransfer(int species)
+        internal static EncounterStatic GetGSStaticTransfer(int species, int pkmMetLevel)
         {
             return new EncounterStatic
             {
@@ -1260,6 +1336,7 @@ namespace PKHeX.Core
                 Location = 30004, // todo
                 EggLocation = 0,
                 IV3 = true,
+                Level = pkmMetLevel,
                 Version = GameVersion.GS
             };
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -120,22 +121,16 @@ namespace PKHeX.WinForms.Controls
 
             // Browser apps need time to load data since the file isn't moved to a location on the user's local storage.
             // Tested 10ms -> too quick, 100ms was fine. 500ms should be safe?
-            if (!external)
-            {
-                if (File.Exists(newfile) && DragInfo.CurrentPath == null)
-                    File.Delete(newfile);
-            }
-            else
-            {
-                new Task(() =>
-                {
-                    Thread.Sleep(500);
-                    if (File.Exists(newfile) && DragInfo.CurrentPath == null)
-                        File.Delete(newfile);
-                }).Start();
-            }
+            int delay = external ? 500 : 0;
+            DeleteAsync(newfile, delay);
             if (DragInfo.Source.IsParty || DragInfo.Destination.IsParty)
                 SE.SetParty();
+        }
+        private async void DeleteAsync(string path, int delay)
+        {
+            await Task.Delay(delay);
+            if (File.Exists(path) && DragInfo.CurrentPath == null)
+                File.Delete(path);
         }
         private string CreateDragDropPKM(PictureBox pb, int box, bool encrypt, out bool external)
         {
@@ -230,6 +225,8 @@ namespace PKHeX.WinForms.Controls
                 return false;
             string file = files[0];
             FileInfo fi = new FileInfo(file);
+            if (!fi.Exists)
+                return false;
             if (!PKX.IsPKM(fi.Length) && !MysteryGift.IsMysteryGift(fi.Length))
             {
                 RequestExternalDragDrop?.Invoke(this, e); // pass thru
@@ -245,7 +242,7 @@ namespace PKHeX.WinForms.Controls
             if (pk == null)
             {
                 WinFormsUtil.Error(c);
-                Console.WriteLine(c);
+                Debug.WriteLine(c);
                 return false;
             }
 
@@ -258,14 +255,14 @@ namespace PKHeX.WinForms.Controls
                 string concat = string.Join(Environment.NewLine, errata);
                 if (DialogResult.Yes != WinFormsUtil.Prompt(MessageBoxButtons.YesNo, concat, "Continue?"))
                 {
-                    Console.WriteLine(c);
-                    Console.WriteLine(concat);
+                    Debug.WriteLine(c);
+                    Debug.WriteLine(concat);
                     return false;
                 }
             }
 
             SetPKM(pk, false, Resources.slotSet);
-            Console.WriteLine(c);
+            Debug.WriteLine(c);
             return true;
         }
         private bool TrySetPKMDestination(object sender, DragEventArgs e, bool overwrite, bool clone, bool noEgg)
@@ -355,7 +352,7 @@ namespace PKHeX.WinForms.Controls
             {
                 if (boxview.CurrentBox == slot.Box)
                 {
-                    Console.WriteLine($"Setting to {boxview.Parent.Name}'s [{boxview.CurrentBox+1:d2}]|{boxview.CurrentBoxName} at Slot {slot.Slot+1}.");
+                    Debug.WriteLine($"Setting to {boxview.Parent.Name}'s [{boxview.CurrentBox+1:d2}]|{boxview.CurrentBoxName} at Slot {slot.Slot+1}.");
                     SetSlotSprite(slot, pk, boxview);
                 }
             }

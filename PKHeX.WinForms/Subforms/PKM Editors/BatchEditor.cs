@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -55,6 +56,7 @@ namespace PKHeX.WinForms
         private const string CONST_RAND = "$rand";
         private const string CONST_SHINY = "$shiny";
         private const string CONST_SUGGEST = "$suggest";
+        private const string CONST_BYTES = "$[]";
 
         private const string PROP_LEGAL = "Legal";
         private static readonly string[] CustomProperties = {PROP_LEGAL};
@@ -86,12 +88,6 @@ namespace PKHeX.WinForms
         }
         private void B_Go_Click(object sender, EventArgs e)
         {
-            if (b.IsBusy)
-            { WinFormsUtil.Alert("Currently executing instruction list."); return; }
-
-            if (RTB_Instructions.Lines.Any(line => line.Length == 0))
-            { WinFormsUtil.Error("Line length error in instruction list."); return; }
-
             RunBackgroundWorker();
         }
         private void B_Add_Click(object sender, EventArgs e)
@@ -148,28 +144,30 @@ namespace PKHeX.WinForms
             RB_Path.Checked = true;
         }
 
-        private BackgroundWorker b = new BackgroundWorker { WorkerReportsProgress = true };
+        private BackgroundWorker b;
         private void RunBackgroundWorker()
         {
+            if (RTB_Instructions.Lines.Any(line => line.Length == 0))
+            { WinFormsUtil.Error("Line length error in instruction list."); return; }
+
             var Filters = StringInstruction.GetFilters(RTB_Instructions.Lines).ToArray();
             if (Filters.Any(z => string.IsNullOrWhiteSpace(z.PropertyValue)))
             { WinFormsUtil.Error("Empty Filter Value detected."); return; }
 
             var Instructions = StringInstruction.GetInstructions(RTB_Instructions.Lines).ToArray();
+            if (!Instructions.Any())
+            { WinFormsUtil.Error("No instructions defined."); return; }
+
             var emptyVal = Instructions.Where(z => string.IsNullOrWhiteSpace(z.PropertyValue)).ToArray();
             if (emptyVal.Any())
             {
                 string props = string.Join(", ", emptyVal.Select(z => z.PropertyName));
-                if (DialogResult.Yes != WinFormsUtil.Prompt(MessageBoxButtons.YesNo, 
-                    $"Empty Property Value{(emptyVal.Length > 1 ? "s" : "")} detected:" + Environment.NewLine + props,
-                    "Continue?"))
+                string invalid = $"Empty Property Value{(emptyVal.Length > 1 ? "s" : "")} detected:" + Environment.NewLine + props;
+                if (DialogResult.Yes != WinFormsUtil.Prompt(MessageBoxButtons.YesNo, invalid, "Continue?"))
                     return;
             }
 
-            if (!Instructions.Any())
-            { WinFormsUtil.Error("No instructions defined."); return; }
-
-            string destPath = "";
+            string destPath = null;
             if (RB_Path.Checked)
             {
                 WinFormsUtil.Alert("Please select the folder where the files will be saved to.", "This can be the same folder as the source of PKM files.");
@@ -183,42 +181,24 @@ namespace PKHeX.WinForms
 
             FLP_RB.Enabled = RTB_Instructions.Enabled = B_Go.Enabled = false;
 
-            b = new BackgroundWorker {WorkerReportsProgress = true};
             ScreenStrings(Filters);
             ScreenStrings(Instructions);
-
-            b.DoWork += (sender, e) => {
-
-                len = err = ctr = 0;
-                if (RB_SAV.Checked)
-                {
-                    if (SAV.HasParty)
-                    {
-                        var data = SAV.PartyData;
-                        SetupProgressBar(data.Length);
-                        ProcessSAV(data, Filters, Instructions);
-                        SAV.PartyData = data;
-                    }
-                    if (SAV.HasBox)
-                    {
-                        var data = SAV.BoxData;
-                        SetupProgressBar(data.Length);
-                        ProcessSAV(data, Filters, Instructions);
-                        SAV.BoxData = data;
-                    }
-                }
-                else
-                {
-                    var files = Directory.GetFiles(TB_Folder.Text, "*", SearchOption.AllDirectories);
-                    SetupProgressBar(files.Length);
-                    ProcessFolder(files, Filters, Instructions, destPath);
-                }
-            };
-            b.ProgressChanged += (sender, e) =>
+            RunBatchEdit(Filters, Instructions, TB_Folder.Text, destPath);
+        }
+        private void RunBatchEdit(StringInstruction[] Filters, StringInstruction[] Instructions, string source, string destination)
+        {
+            len = err = ctr = 0;
+            b = new BackgroundWorker { WorkerReportsProgress = true };
+            b.DoWork += (sender, e) =>
             {
-                SetProgressBar(e.ProgressPercentage);
+                if (RB_SAV.Checked)
+                    RunBatchEditSaveFile(Filters, Instructions);
+                else
+                    RunBatchEditFolder(Filters, Instructions, source, destination);
             };
-            b.RunWorkerCompleted += (sender, e) => {
+            b.ProgressChanged += (sender, e) => SetProgressBar(e.ProgressPercentage);
+            b.RunWorkerCompleted += (sender, e) =>
+            {
                 string result = $"Modified {ctr}/{len} files.";
                 if (err > 0)
                     result += Environment.NewLine + $"{err} files ignored due to an internal error.";
@@ -227,6 +207,26 @@ namespace PKHeX.WinForms
                 SetupProgressBar(0);
             };
             b.RunWorkerAsync();
+        }
+        private void RunBatchEditFolder(StringInstruction[] Filters, StringInstruction[] Instructions, string source, string destination)
+        {
+            var files = Directory.GetFiles(source, "*", SearchOption.AllDirectories);
+            SetupProgressBar(files.Length);
+            ProcessFolder(files, Filters, Instructions, destination);
+        }
+        private void RunBatchEditSaveFile(StringInstruction[] Filters, StringInstruction[] Instructions)
+        {
+            PKM[] data;
+            if (SAV.HasParty && process(data = SAV.PartyData))
+                SAV.PartyData = data;
+            if (SAV.HasBox && process(data = SAV.BoxData))
+                SAV.BoxData = data;
+            bool process(PKM[] d)
+            {
+                SetupProgressBar(d.Length);
+                ProcessSAV(d, Filters, Instructions);
+                return d.Length != 0;
+            }
         }
 
         // Progress Bar
@@ -281,7 +281,7 @@ namespace PKHeX.WinForms
             if (!pkm.Valid || pkm.Locked)
             {
                 len++;
-                Console.WriteLine("Skipped a pkm due to disallowed input: " + (pkm.Locked ? "Locked." : "Not Valid."));
+                Debug.WriteLine("Skipped a pkm due to disallowed input: " + (pkm.Locked ? "Locked." : "Not Valid."));
                 return false;
             }
 
@@ -350,7 +350,7 @@ namespace PKHeX.WinForms
                 if (Min == Max)
                 {
                     PropertyValue = Min.ToString();
-                    Console.WriteLine(PropertyName + " randomization range Min/Max same?");
+                    Debug.WriteLine(PropertyName + " randomization range Min/Max same?");
                 }
                 else
                     Random = true;
@@ -399,7 +399,7 @@ namespace PKHeX.WinForms
             foreach (var i in il.Where(i => !i.PropertyValue.All(char.IsDigit)))
             {
                 string pv = i.PropertyValue;
-                if (pv.StartsWith("$") && pv.Contains(','))
+                if (pv.StartsWith("$") && !pv.StartsWith(CONST_BYTES) && pv.Contains(','))
                     i.SetRandRange(pv);
 
                 SetInstructionScreenedValue(i);
@@ -441,7 +441,7 @@ namespace PKHeX.WinForms
                     if (IsPKMFiltered(pkm, cmd, info, out result))
                         return result; // why it was filtered out
                 }
-                catch { Console.WriteLine($"Unable to compare {cmd.PropertyName} to {cmd.PropertyValue}."); }
+                catch { Debug.WriteLine($"Unable to compare {cmd.PropertyName} to {cmd.PropertyValue}."); }
             }
 
             foreach (var cmd in Instructions)
@@ -450,12 +450,17 @@ namespace PKHeX.WinForms
                 {
                     result = SetPKMProperty(PKM, info, cmd);
                 }
-                catch { Console.WriteLine($"Unable to set {cmd.PropertyName} to {cmd.PropertyValue}."); }
+                catch { Debug.WriteLine($"Unable to set {cmd.PropertyName} to {cmd.PropertyValue}."); }
             }
             return result;
         }
         private static ModifyResult SetPKMProperty(PKM PKM, PKMInfo info, StringInstruction cmd)
         {
+            if (cmd.PropertyValue.StartsWith(CONST_BYTES))
+                return SetByteArrayProperty(PKM, cmd)
+                    ? ModifyResult.Modified
+                    : ModifyResult.Error;
+
             if (cmd.PropertyValue == CONST_SUGGEST)
                 return SetSuggestedPKMProperty(PKM, cmd, info)
                     ? ModifyResult.Modified
@@ -516,6 +521,21 @@ namespace PKHeX.WinForms
                 default:
                     return false;
             }
+        }
+        private static bool SetByteArrayProperty(PKM PKM, StringInstruction cmd)
+        {
+            switch (cmd.PropertyName)
+            {
+                case nameof(PKM.Nickname_Trash):
+                    PKM.Nickname_Trash = string2arr(cmd.PropertyValue);
+                    return true;
+                case nameof(PKM.OT_Trash):
+                    PKM.OT_Trash = string2arr(cmd.PropertyValue);
+                    return true;
+                default:
+                    return false;
+            }
+            byte[] string2arr(string str) => str.Substring(CONST_BYTES.Length).Split(',').Select(z => Convert.ToByte(z.Trim(), 16)).ToArray();
         }
         private static void SetProperty(PKM PKM, StringInstruction cmd)
         {

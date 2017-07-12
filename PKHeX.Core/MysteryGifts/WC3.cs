@@ -2,7 +2,7 @@
 
 namespace PKHeX.Core
 {
-    public class WC3 : MysteryGift
+    public class WC3 : MysteryGift, IRibbonSetEvent3
     {
         // Template Properties
 
@@ -42,15 +42,10 @@ namespace PKHeX.Core
         public override bool IsPokémon { get; set; }
 
         // Synthetic
-        private int _metLevel = -1;
+        private int? _metLevel;
         public int Met_Level
         {
-            get
-            {
-                if (IsEgg)
-                    return 0;
-                return _metLevel < 0 ? Level : _metLevel;
-            }
+            get => _metLevel ?? (IsEgg ? 0 : Level);
             set => _metLevel = value;
         }
 
@@ -58,5 +53,12 @@ namespace PKHeX.Core
         {
             throw new NotImplementedException();
         }
+
+        public bool RibbonEarth { get; set; }
+        public bool RibbonNational { get; set; }
+        public bool RibbonCountry { get; set; }
+        public bool RibbonChampionBattle { get; set; }
+        public bool RibbonChampionRegional { get; set; }
+        public bool RibbonChampionNational { get; set; }
     }
 }

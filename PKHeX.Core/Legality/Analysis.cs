@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using static PKHeX.Core.LegalityCheckStrings;
@@ -91,7 +92,7 @@ namespace PKHeX.Core
             }
             catch (Exception e)
             {
-                Console.WriteLine(e.Message);
+                Debug.WriteLine(e.Message);
                 Valid = false;
                 AddLine(Severity.Invalid, V190, CheckIdentifier.Misc);
                 pkm = pk;
@@ -118,12 +119,6 @@ namespace PKHeX.Core
 
             UpdateInfo();
             UpdateTypeInfo();
-            if (pk.Format > 2) // transferred
-            {
-                EncounterOriginalGB = EncounterMatch;
-                foreach (var z in VerifyVCEncounter(pkm, EncounterMatch.Species, EncounterMatch as GBEncounterData))
-                    AddLine(z);
-            }
             VerifyNickname();
             VerifyDVs();
             VerifyEVs();
@@ -187,17 +182,28 @@ namespace PKHeX.Core
             { AddLine(Severity.Invalid, V187, CheckIdentifier.GameOrigin); return; }
 
             UpdateInfo();
+            if (pkm.VC)
+                UpdateVCTransferInfo();
             UpdateTypeInfo();
             UpdateChecks();
         }
 
+        private void UpdateVCTransferInfo()
+        {
+            EncounterOriginalGB = EncounterMatch;
+            if (pkm.VC1)
+                Info.EncounterMatch = EncounterGenerator.GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
+            else if (pkm.VC2)
+                Info.EncounterMatch = EncounterGenerator.GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
+            foreach (var z in VerifyVCEncounter(pkm, EncounterOriginalGB.Species, EncounterOriginalGB as GBEncounterData, Info.EncounterMatch as EncounterStatic))
+                AddLine(z);
+        }
         private void UpdateInfo()
         {
             Info = EncounterFinder.FindVerifiedEncounter(pkm);
             Encounter = Info.Parse[0];
             Parse.AddRange(Info.Parse);
         }
-        
         private void UpdateTradebackG12()
         {
             if (pkm.Format == 1)
@@ -237,7 +243,7 @@ namespace PKHeX.Core
             }
             else if (pkm.Format == 2 || pkm.VC2)
             {
-                // Eggs, pokemon with non-empty crystal met location, and generation 2 species without generation 1 preevolutions can't be traded to generation 1.
+                // Eggs, pokemon with non-empty Crystal met location, and generation 2 species without generation 1 preevolutions can't be traded to generation 1.
                 if (pkm.IsEgg || pkm.HasOriginalMetLocation || (pkm.Species > Legal.MaxSpeciesID_1 && !Legal.FutureEvolutionsGen1.Contains(pkm.Species)))
                     pkm.TradebackStatus = TradebackType.Gen2_NotTradeback;
                 else
@@ -259,9 +265,9 @@ namespace PKHeX.Core
             if (pkm.Format >= 7)
             {
                 if (pkm.VC1)
-                    Info.EncounterMatch = EncounterGenerator.GetRBYStaticTransfer(pkm.Species);
+                    Info.EncounterMatch = EncounterGenerator.GetRBYStaticTransfer(pkm.Species, pkm.Met_Level);
                 else if (pkm.VC2)
-                    Info.EncounterMatch = EncounterGenerator.GetGSStaticTransfer(pkm.Species);
+                    Info.EncounterMatch = EncounterGenerator.GetGSStaticTransfer(pkm.Species, pkm.Met_Level);
             }
 
             if (pkm.GenNumber <= 2 && pkm.TradebackStatus == TradebackType.Any && (EncounterMatch as GBEncounterData)?.Generation != pkm.GenNumber)

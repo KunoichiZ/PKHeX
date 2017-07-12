@@ -580,16 +580,10 @@ namespace PKHeX.Core
                 }
             }
         }
-        private static IEnumerable<CheckResult> VerifyVCEncounter(PKM pkm, int baseSpecies, GBEncounterData encounter)
+        private static IEnumerable<CheckResult> VerifyVCEncounter(PKM pkm, int baseSpecies, GBEncounterData encounter, EncounterStatic transfer)
         {
-            // Sanitize Species to non-future species#
-            int species = pkm.Species;
-            if (pkm.VC1 && species > Legal.MaxSpeciesID_1 ||
-                pkm.VC2 && species > Legal.MaxSpeciesID_2)
-                species = baseSpecies;
-
             // Check existing EncounterMatch
-            if (encounter == null)
+            if (encounter == null || transfer == null)
                 yield break; // Avoid duplicate invaild message
 
             if (encounter.Encounter is EncounterStatic v && (GameVersion.GBCartEraOnly.Contains(v.Version) || v.Version == GameVersion.VCEvents))
@@ -600,13 +594,12 @@ namespace PKHeX.Core
                     yield return new CheckResult(Severity.Invalid, V79, CheckIdentifier.Encounter);
             }
 
-            var ematch = EncounterGenerator.GetRBYStaticTransfer(species);
-            if (pkm.Met_Location != ematch.Location)
+            if (pkm.Met_Location != transfer.Location)
                 yield return new CheckResult(Severity.Invalid, V81, CheckIdentifier.Encounter);
-            if (pkm.Egg_Location != ematch.EggLocation)
+            if (pkm.Egg_Location != transfer.EggLocation)
                 yield return new CheckResult(Severity.Invalid, V59, CheckIdentifier.Encounter);
 
-            if (species == 150 && pkm.Moves.Contains(6)) // pay day
+            if (baseSpecies == 150 && pkm.Moves.Contains(6)) // pay day
                 yield return new CheckResult(Severity.Invalid, V82, CheckIdentifier.Encounter);
         }
         #endregion
@@ -793,6 +786,9 @@ namespace PKHeX.Core
                 var iter4 = gen == 4 && IsAllowedInContest4(pkm.Species) ? getMissingContestRibbons(c4, c4n) : GetRibbonMessageNone(c4, c4n);
                 foreach (var z in iter3.Concat(iter4))
                     yield return z;
+
+                for (int i = 0; i < 5; ++i)
+                    artist |= c3[3 | i << 2]; // any master rank ribbon
 
                 IEnumerable<RibbonResult> getMissingContestRibbons(IReadOnlyList<bool> bits, IReadOnlyList<string> names)
                 {
@@ -1348,7 +1344,7 @@ namespace PKHeX.Core
             {
                 if (pkm.Met_Location == 30016 && pkm.Gen7) // Poké Pelago
                     VerifyBallEquals(4); // Pokeball
-                // For gen3/4 safari zones and BCC getValidWildEncounters already filter to not return
+                // For gen3/4 Safari Zones and BCC getValidWildEncounters already filter to not return
                 // mixed possible encounters between safari, BCC and other encounters
                 // That means is the first encounter is not safari then there is no safari encounter in the array
                 else if (3 <= pkm.GenNumber && pkm.GenNumber <= 4 && EncounterGenerator.IsSafariSlot(w.Type))
@@ -2331,6 +2327,9 @@ namespace PKHeX.Core
         }
         private void VerifyFatefulIngameActive()
         {
+            if (pkm.Version == 15 && pkm is XK3 && Info.WasXD)
+                return; // fateful is set when transferred away
+
             if (pkm.FatefulEncounter)
                 AddLine(Severity.Valid, V323, CheckIdentifier.Fateful);
             else

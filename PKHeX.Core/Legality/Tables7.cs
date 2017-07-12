@@ -461,6 +461,7 @@ namespace PKHeX.Core
             687, // Core Enforcer
         };
 
+        internal static readonly int[] EggLocations7 = {60002, 30002};
         internal static readonly int[] ValidMet_SM =
         {
             006, 008, 010, 012, 014, 016, 018, 020, 022, 024, 026, 028, 030, 032, 034, 036, 038, 040, 042, 044, 046, 048,
@@ -1301,7 +1302,6 @@ namespace PKHeX.Core
             588, // Relic Band
             589, // Relic Statue
             590, // Relic Crown
-            657, // Gardevoirite
             658, // Ampharosite
             667, // Aggronite
             684, // Latiasite
@@ -1310,10 +1310,7 @@ namespace PKHeX.Core
             711, // Sail Fossil
             715, // Fairy Gem
             755, // Altarianite
-            756, // Galladite
             764, // Diancite
-            768, // Lopunnite
-            802, // Marshadium Z
         };
         #endregion
         internal static readonly bool[] ReleasedHeldItems_7 = Enumerable.Range(0, MaxItemID_7+1).Select(i => HeldItems_SM.Contains((ushort)i) && !UnreleasedHeldItems_7.Contains(i)).ToArray();

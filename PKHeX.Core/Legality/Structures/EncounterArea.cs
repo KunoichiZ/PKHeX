@@ -67,6 +67,10 @@ namespace PKHeX.Core
                 rates[i] = data[ofs++];
             
             var slots = ReadSlots(data, ref ofs, slotSets * slotCount, t, rates[0]);
+            for (int i = 0; i < slotCount; i++)
+            {
+                slots[i].Time = EncounterTime.Morning;
+            }
             for (int r = 1; r < slotSets; r++)
             {
                 for (int i = 0; i < slotCount; i++)
@@ -74,6 +78,7 @@ namespace PKHeX.Core
                     int index = i + r*slotCount;
                     slots[index].Rate = rates[r];
                     slots[index].SlotNumber = i;
+                    slots[index].Time = r == 1 ? EncounterTime.Day : EncounterTime.Night;
                 }
             }
 
@@ -111,8 +116,11 @@ namespace PKHeX.Core
             // slot set ends in 0xFF
             var slots = new List<EncounterSlot1>();
             int tableCount = t == SlotType.Headbutt ? 2 : 1;
+            SlotType slottype = t;
             while (tableCount != 0)
             {
+                if (t == SlotType.Headbutt)
+                    slottype = tableCount == 2 ? SlotType.Headbutt_Special : SlotType.Headbutt;
                 int rate = data[ofs++];
                 if (rate == 0xFF) // end of table
                 {
@@ -129,7 +137,7 @@ namespace PKHeX.Core
                     Species = species,
                     LevelMin = level,
                     LevelMax = level,
-                    Type = t
+                    Type = slottype
                 });
             }
             return slots.ToArray();
@@ -175,7 +183,6 @@ namespace PKHeX.Core
                     var slot = slots[i];
                     if (slot.Type != SlotType.Special)
                         continue;
-
                     Array.Resize(ref slots, slots.Length + 1);
                     Array.Copy(slots, i, slots, i+1, slots.Length - i - 1); // shift slots down
                     slots[i+1] = slot.Clone(); // differentiate copied slot
@@ -183,10 +190,11 @@ namespace PKHeX.Core
                     int index = slot.LevelMin*2;
                     for (int j = 0; j < 2; j++) // load special slot info
                     {
-                        var s = slots[i + j];
+                        var s = slots[i + j] as EncounterSlot1;
                         s.Species = dl[index + j].Species;
                         s.LevelMin = s.LevelMax = dl[index + j].Level;
                         s.Type = slots[i - 1].Type; // special slots are never first in a set, so copy previous type
+                        s.Time = j == 0 ? EncounterTime.MorningDay : EncounterTime.Night;
                     }
                 }
                 area.Slots = slots;

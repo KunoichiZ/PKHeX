@@ -1738,7 +1738,7 @@ namespace PKHeX.Core
             }
             else // Is Traded
             {
-                if (pkm.Format == 6 && pkm.HT_Memory == 0)
+                if (pkm.Format == 6 && pkm.HT_Memory == 0 && !pkm.IsEgg)
                     return new CheckResult(Severity.Invalid, V150, CheckIdentifier.History);
             }
 
@@ -2080,6 +2080,11 @@ namespace PKHeX.Core
                     if (pkm.AltForm > 1) // Ash Battle Bond active
                     {
                         AddLine(Severity.Invalid, V310, CheckIdentifier.Form);
+                        return;
+                    }
+                    if (pkm.AltForm != 0 ^ Type == typeof(MysteryGift)) // Formes are not breedable
+                    {
+                        AddLine(Severity.Invalid, string.Format(V304, 0, pkm.AltForm), CheckIdentifier.Form);
                         return;
                     }
                     break;

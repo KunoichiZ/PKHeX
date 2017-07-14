@@ -294,7 +294,7 @@ namespace PKHeX.Core
             IEnumerable<EncounterStatic> poss = GetStaticEncounters(pkm, gameSource: gameSource);
 
             int lvl = GetMinLevelEncounter(pkm);
-            if (lvl <= 0)
+            if (lvl < 0)
                 yield break;
 
             // Back Check against pkm
@@ -326,11 +326,13 @@ namespace PKHeX.Core
         }
         private static IEnumerable<EncounterStatic> GetMatchingStaticEncounters(PKM pkm, IEnumerable<EncounterStatic> poss, int lvl)
         {
+            // check for petty rejection scenarios that will be flagged by other legality checks
+            var deferred = new List<EncounterStatic>();
             foreach (EncounterStatic e in poss)
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
-                if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0)
+                if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0 && pkm.Format > 3)
                     continue;
                 if (pkm.Gen3 && e.EggLocation != 0) // Gen3 Egg
                 {
@@ -386,7 +388,10 @@ namespace PKHeX.Core
                     if (!e.EggEncounter && e.Location != 0 && e.Location != pkm.Met_Location)
                         continue;
                     if (e.Level != lvl)
-                        continue;
+                    {
+                        if (!(pkm.Format == 3 && e.EggEncounter && lvl == 0))
+                            continue;
+                    }
                 }
                 else if (e.Level > lvl)
                     continue;
@@ -434,8 +439,13 @@ namespace PKHeX.Core
                 if (!AllowGBCartEra && GameVersion.GBCartEraOnly.Contains(e.Version))
                     continue; // disallow gb cart era encounters (as they aren't obtainable by Main/VC series)
 
-                yield return e;
+                if (pkm.FatefulEncounter ^ e.Fateful)
+                    deferred.Add(e);
+                else
+                    yield return e;
             }
+            foreach (var e in deferred)
+                yield return e;
         }
         private static IEnumerable<EncounterStatic> GetStaticEncounters(PKM pkm, int lvl = -1, GameVersion gameSource = GameVersion.Any)
         {

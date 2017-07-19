@@ -807,6 +807,32 @@ namespace PKHeX.WinForms.Controls
 
             return true;
         }
+        private void CheckTransferPIDValid()
+        {
+            if (pkm.Version >= 24)
+                return;
+
+            uint EC = Util.GetHexValue(TB_EC.Text);
+            uint PID = Util.GetHexValue(TB_PID.Text);
+            uint SID = Util.ToUInt32(TB_SID.Text);
+            uint TID = Util.ToUInt32(TB_TID.Text);
+            uint LID = PID & 0xFFFF;
+            uint HID = PID >> 16;
+            uint XOR = TID ^ LID ^ SID ^ HID;
+
+            // Ensure we don't have a shiny.
+            if (XOR >> 3 == 1) // Illegal, fix. (not 16<XOR>=8)
+            {
+                // Keep as shiny, so we have to mod the PID
+                PID ^= XOR;
+                TB_PID.Text = PID.ToString("X8");
+                TB_EC.Text = PID.ToString("X8");
+            }
+            else if ((XOR ^ 0x8000) >> 3 == 1 && PID != EC)
+                TB_EC.Text = (PID ^ 0x80000000).ToString("X8");
+            else // Not Illegal, no fix.
+                TB_EC.Text = PID.ToString("X8");
+        }
 
         private void UpdateIVs(object sender, EventArgs e)
         {
@@ -1029,23 +1055,8 @@ namespace PKHeX.WinForms.Controls
                 return;
 
             int wIndex = Array.IndexOf(Legal.WurmpleEvolutions, WinFormsUtil.GetIndex(CB_Species));
-            if (wIndex < 0)
-            {
-                TB_EC.Text = Util.Rand32().ToString("X8");
-            }
-            else
-            {
-                int gen = pkm.GenNumber;
-                uint EC;
-                bool valid;
-                do
-                {
-                    EC = Util.Rand32();
-                    uint evoVal = PKX.GetWurmpleEvoVal(gen, EC);
-                    valid = evoVal == wIndex / 2;
-                } while (!valid);
-                TB_EC.Text = EC.ToString("X8");
-            }
+            uint EC = wIndex < 0 ? Util.Rand32() : PKX.GetWurmpleEC(wIndex/2);
+            TB_EC.Text = EC.ToString("X8");
             UpdateLegality();
         }
         private void UpdateHackedStats(object sender, EventArgs e)

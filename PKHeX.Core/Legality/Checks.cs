@@ -98,7 +98,7 @@ namespace PKHeX.Core
         }
         private void VerifyECPIDWurmple()
         {
-            uint evoVal = PKX.GetWurmpleEvoVal(pkm.GenNumber, pkm.EncryptionConstant);
+            uint evoVal = PKX.GetWurmpleEvoVal(pkm.EncryptionConstant);
 
             if (pkm.Species == 265)
                 AddLine(Severity.Valid, string.Format(V212, evoVal == 0 ? SpeciesStrings[267] : SpeciesStrings[269]), CheckIdentifier.EC);
@@ -1034,8 +1034,6 @@ namespace PKHeX.Core
             var sb = set2.RibbonBits();
             var eb = (encounterContent as IRibbonSetEvent4).RibbonBits();
 
-            if (encounterContent is EncounterLink)
-                eb[0] = true; // require Classic Ribbon
             if (encounterContent is EncounterStatic s && s.RibbonWishing)
                 eb[1] = true; // require Wishing Ribbon
 

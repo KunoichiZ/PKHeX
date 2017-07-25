@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using PKHeX.Core;
@@ -107,7 +108,7 @@ namespace PKHeX.WinForms
                 GB_KeySystem.Visible = false;
                 // Roamer
                 cbr = new[] { CB_Roamer642, CB_Roamer641 };
-                ComboItem[] states = {
+                List<ComboItem> getStates() => new List<ComboItem> {
                     new ComboItem { Text = "Not roamed", Value = 0 },
                     new ComboItem { Text = "Roaming", Value = 1 },
                     new ComboItem { Text = "Defeated", Value = 2 },
@@ -118,9 +119,14 @@ namespace PKHeX.WinForms
                 //    Roaming: Roaming/Defeated/Captured
                 //   Defeated: Defeated/Captured
                 //   Captured: Defeated/Captured
-                for (int i = 0, c; i < cbr.Length; i++)
+                // Top 2 bit acts as flags of some sorts
+                for (int i = 0; i < cbr.Length; i++)
                 {
-                    c = SAV.Data[ofsRoamer + 0x2E + i];
+                    int c = SAV.Data[ofsRoamer + 0x2E + i];
+
+                    var states = getStates();
+                    if (states.All(z => z.Value != c))
+                        states.Add(new ComboItem {Text = $"Unknown (0x{c:X2})", Value = c});
                     cbr[i].Items.Clear();
                     cbr[i].DisplayMember = "Text";
                     cbr[i].ValueMember = "Value";
@@ -177,6 +183,7 @@ namespace PKHeX.WinForms
                 {
                     int c = SAV.Data[ofsRoamer + 0x2E + i];
                     var d = (int)cbr[i].SelectedValue;
+
                     if (c == d)
                         continue;
                     SAV.Data[ofsRoamer + 0x2E + i] = (byte)d;

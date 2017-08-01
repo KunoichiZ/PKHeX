@@ -1,11 +1,25 @@
-﻿using System;
-using System.Linq;
+﻿using System.Linq;
 using static PKHeX.Core.LegalityCheckStrings;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Finds matching <see cref="IEncounterable"/> data and relevant <see cref="LegalInfo"/> for a <see cref="PKM"/>.
+    /// </summary>
     public static class EncounterFinder
     {
+        /// <summary>
+        /// Iterates through all possible encounters until a sufficient match is found
+        /// </summary>
+        /// <remarks>
+        /// The iterator lazily finds matching encounters, then verifies secondary checks to weed out any nonexact matches.
+        /// </remarks>
+        /// <param name="pkm">Source data to find a match for</param>
+        /// <returns>
+        /// Information containing the matched encounter and any parsed checks.
+        /// If no clean match is found, the last checked match is returned. 
+        /// If no match is found, an invalid encounter object is returned.
+        /// </returns>
         public static LegalInfo FindVerifiedEncounter(PKM pkm)
         {
             LegalInfo info = new LegalInfo(pkm);
@@ -16,10 +30,9 @@ namespace PKHeX.Core
                 if (!encounter.PeekIsNext())
                     return VerifyWithoutEncounter(pkm, info);
 
-                var EncounterValidator = GetEncounterVerifierMethod(pkm);
+                var EncounterValidator = EncounterVerifier.GetEncounterVerifierMethod(pkm);
                 while (encounter.MoveNext())
                 {
-                    bool PIDMatch = info.PIDIVMatches;
                     info.EncounterMatch = encounter.Current;
                     var e = EncounterValidator(pkm, info);
                     if (!e.Valid && encounter.PeekIsNext())
@@ -29,14 +42,26 @@ namespace PKHeX.Core
                     }
                     info.Parse.Add(e);
 
-                    if (VerifySecondaryChecks(pkm, info, PIDMatch, encounter))
+                    if (VerifySecondaryChecks(pkm, info, encounter))
                         break; // passes
                 }
                 return info;
             }
         }
 
-        private static bool VerifySecondaryChecks(PKM pkm, LegalInfo info, bool PIDMatch, PeekEnumerator<IEncounterable> iterator)
+        /// <summary>
+        /// Checks supplementary info to see if the encounter is still valid.
+        /// </summary>
+        /// <remarks>
+        /// When an encounter is initially validated, only encounter-related checks are performed.
+        /// By checking Moves, Evolution, and <see cref="PIDIV"/> data, a best match encounter can be found.
+        /// If the encounter is not valid, the method will not reject it unless another encounter is available to check.
+        /// </remarks>
+        /// <param name="pkm">Source data to check the match for</param>
+        /// <param name="info">Information containing the matched encounter</param>
+        /// <param name="iterator">Peekable iterator </param>
+        /// <returns>Indication whether or not the encounter passes secondary checks</returns>
+        private static bool VerifySecondaryChecks(PKM pkm, LegalInfo info, PeekEnumerator<IEncounterable> iterator)
         {
             if (pkm.Format >= 6)
             {
@@ -57,7 +82,7 @@ namespace PKHeX.Core
                 return false;
             info.Parse.Add(evo);
 
-            if (!PIDMatch)
+            if (!info.PIDIVMatches)
             {
                 if (iterator.PeekIsNext())
                     return false; // continue to next
@@ -65,6 +90,13 @@ namespace PKHeX.Core
             }
             return true;
         }
+
+        /// <summary>
+        /// Returns legality info for an unmatched encounter scenario, including a hint as to what the actual match could be.
+        /// </summary>
+        /// <param name="pkm">Source data to check the match for</param>
+        /// <param name="info">Information containing the unmatched encounter</param>
+        /// <returns>Updated information pertaining to the unmatched encounter</returns>
         private static LegalInfo VerifyWithoutEncounter(PKM pkm, LegalInfo info)
         {
             info.EncounterMatch = new EncounterInvalid(pkm);
@@ -83,17 +115,6 @@ namespace PKHeX.Core
             info.Relearn = VerifyRelearnMoves.VerifyRelearn(pkm, info);
             info.Moves = VerifyCurrentMoves.VerifyMoves(pkm, info);
             return info;
-        }
-        private static Func<PKM, LegalInfo, CheckResult> GetEncounterVerifierMethod(PKM pkm)
-        {
-            switch (pkm.GenNumber)
-            {
-                case 1:
-                case 2:
-                    return EncounterVerifier.VerifyEncounterG12;
-                default:
-                    return EncounterVerifier.VerifyEncounter;
-            }
         }
     }
 }

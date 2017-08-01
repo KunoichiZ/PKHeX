@@ -11,10 +11,14 @@ namespace PKHeX.Core
 
         static Encounters5()
         {
-            MarkG5DreamWorld(BW_DreamWorld);
-            MarkG5DreamWorld(B2W2_DreamWorld);
-            StaticB = StaticW = Encounter_BW.Concat(BW_DreamWorld).ToArray();
-            StaticB2 = StaticW2 = Encounter_B2W2.Concat(B2W2_DreamWorld).ToArray();
+            MarkG5DreamWorld(ref BW_DreamWorld);
+            MarkG5DreamWorld(ref B2W2_DreamWorld);
+            var staticbw = Encounter_BW.Concat(BW_DreamWorld).ToArray();
+            var staticb2w2 = Encounter_B2W2.Concat(B2W2_DreamWorld).ToArray();
+            StaticB = GetStaticEncounters(staticbw, GameVersion.B);
+            StaticW = GetStaticEncounters(staticbw, GameVersion.W);
+            StaticB2 = GetStaticEncounters(staticb2w2, GameVersion.B2);
+            StaticW2 = GetStaticEncounters(staticb2w2, GameVersion.W2);
 
             var BSlots = GetEncounterTables(GameVersion.B);
             var WSlots = GetEncounterTables(GameVersion.W);
@@ -59,7 +63,7 @@ namespace PKHeX.Core
                 s.Type = SlotType.HiddenGrotto;
         }
 
-        private static void MarkG5DreamWorld(EncounterStatic[] t)
+        private static void MarkG5DreamWorld(ref EncounterStatic[] t)
         {
             foreach (EncounterStatic s in t)
             {

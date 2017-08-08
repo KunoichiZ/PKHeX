@@ -106,6 +106,13 @@ namespace PKHeX.Core
                     deferred.Add(s);
                     continue;
                 }
+                if (s.Version == GameVersion.EventsGBGen2 && s.Species != 251)
+                {
+                    // no Gen2 events outside of Japan besides Celebi
+                    var jp = (pkm as PK2)?.Japanese ?? (pkm as PK1)?.Japanese;
+                    if (jp != true)
+                        continue;
+                }
                 if (game == GameVersion.GSC && !s.EggEncounter && s.Version == GameVersion.C && !pkm.HasOriginalMetLocation)
                     continue;
                 yield return new GBEncounterData(pkm, gen, s, game);
@@ -243,7 +250,7 @@ namespace PKHeX.Core
             // if (ctr != 0) yield break;
             foreach (var z in GetValidWildEncounters(pkm))
             { yield return z; ++ctr; }
-            if (ctr != 0) yield break;
+            if (ctr != 0 && pkm.HasOriginalMetLocation) yield break; // EncounterTrade abra/gengar will match wild slots
             foreach (var z in GetValidEncounterTrades(pkm))
             { yield return z; ++ctr; }
             if (ctr != 0) yield break;
@@ -943,7 +950,13 @@ namespace PKHeX.Core
 
                 if (wc.Language != -1 && wc.Language != pkm.Language) continue;
                 if (wc.Ball != pkm.Ball) continue;
-                if (wc.Fateful != pkm.FatefulEncounter) continue;
+                if (wc.Fateful != pkm.FatefulEncounter)
+                {
+                    // XD Gifts only at level 20 get flagged after transfer
+                    bool valid = wc.Level == 20 && pkm is XK3;
+                    if (!valid)
+                        continue;
+                }
 
                 if (pkm.IsNative)
                 {

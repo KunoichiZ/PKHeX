@@ -1,4 +1,5 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System.Collections.Generic;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using PKHeX.Core;
 
@@ -144,10 +145,16 @@ namespace PKHeX.Tests.PKM
         {
             var pkPW = new[]
             {
-                new PK4 { Species = 025, PID = 0x34000089, TID = 20790, SID = 39664}, // Pikachu
-                //new PK4 { Species = 025, PID = 0x7DFFFF60, TID = 30859, SID = 63760}, // Pikachu
-                //new PK4 { Species = 025, PID = 0x7DFFFF65, TID = 30859, SID = 63760}, // Pikachu
-                //new PK4 { Species = 025, PID = 0x7E000003, TID = 30859, SID = 63760}, // Pikachu
+                new PK4 { Species = 025, PID = 0x34000089, TID = 20790, SID = 39664, Gender = 0}, // Pikachu
+                new PK4 { Species = 025, PID = 0x7DFFFF60, TID = 30859, SID = 63760, Gender = 1}, // Pikachu
+                new PK4 { Species = 025, PID = 0x7DFFFF65, TID = 30859, SID = 63760, Gender = 1}, // Pikachu
+                new PK4 { Species = 025, PID = 0x7E000003, TID = 30859, SID = 63760, Gender = 1}, // Pikachu
+                
+                new PK4 { Species = 025, PID = 0x2100008F, TID = 31526, SID = 42406, Gender = 0}, // Pikachu
+                new PK4 { Species = 025, PID = 0x71FFFF5A, TID = 49017, SID = 12807, Gender = 1}, // Pikachu
+                new PK4 { Species = 025, PID = 0xC0000001, TID = 17398, SID = 31936, Gender = 1}, // Pikachu
+                new PK4 { Species = 025, PID = 0x2FFFFF5E, TID = 27008, SID = 42726, Gender = 1}, // Pikachu
+                new PK4 { Species = 025, PID = 0x59FFFFFE, TID = 51223, SID = 28044, Gender = 0}, // Pikachu
             };
             foreach (var pk in pkPW)
                 Assert.AreEqual(PIDType.Pokewalker, MethodFinder.Analyze(pk)?.Type, "Unable to match PID to Pokewalker method");
@@ -191,6 +198,39 @@ namespace PKHeX.Tests.PKM
                 // pk.Version = (int)GameVersion.S;
                 // var results = FrameFinder.GetFrames(pidiv, pk);
             }
+        }
+
+        [TestMethod]
+        [TestCategory(PIDIVTestCategory)]
+        public void PIDIVMethod4IVs()
+        {
+            var pk4 = new PK3 { PID = 0xFEE73213, IVs = new[] { 03, 29, 23, 30, 28, 24 } };
+            Assert.AreEqual(PIDType.Method_4, MethodFinder.Analyze(pk4)?.Type, "Unable to match PID to Method 4 spread");
+
+            // See if any origin seed for the IVs matches what we expect
+            // Load the IVs
+            uint rand1 = 0; // HP/ATK/DEF
+            uint rand3 = 0; // SPE/SPA/SPD
+            var IVs = pk4.IVs;
+            for (int i = 0; i < 3; i++)
+            {
+                rand1 |= (uint)IVs[i] << (5 * i);
+                rand3 |= (uint)IVs[i+3] << (5 * i);
+            }
+            Assert.IsTrue(MethodFinder.GetSeedsFromIVsSkip(RNG.LCRNG, rand1, rand3).Any(z => z == 0xFEE7047C));
+        }
+
+        [TestMethod]
+        [TestCategory(PIDIVTestCategory)]
+        public void PIDIVSearchEuclid()
+        {
+            const uint seed = 0x2E15555E;
+            const uint rand0 = 0x20AD96A9;
+            const uint rand1 = 0x7E1DBEC8;
+            var pidseeds = MethodFinder.GetSeedsFromPIDEuclid(RNG.XDRNG, rand0 >> 16,            rand1 >> 16);
+            var ivseeds = MethodFinder.GetSeedsFromIVsEuclid(RNG.XDRNG, (rand0 >> 16) & 0x7FFF, (rand1 >> 16) & 0x7FFF);
+            Assert.IsTrue(pidseeds.Any(z => z == seed));
+            Assert.IsTrue(ivseeds.Any(z => z == seed));
         }
     }
 }

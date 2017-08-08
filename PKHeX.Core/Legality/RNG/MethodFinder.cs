@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace PKHeX.Core
@@ -185,7 +186,7 @@ namespace PKHeX.Core
         }
         private static bool GetXDRNGMatch(uint top, uint bot, uint[] IVs, out PIDIV pidiv)
         {
-            var xdc = GetSeedsFromPID(RNG.XDRNG, bot, top);
+            var xdc = GetSeedsFromPIDEuclid(RNG.XDRNG, top, bot);
             foreach (var seed in xdc)
             {
                 var B = RNG.XDRNG.Prev(seed);
@@ -212,7 +213,7 @@ namespace PKHeX.Core
             var undo = top ^ 0x8000;
             if ((undo > 7 ? 0 : 1) != (bot ^ pk.SID ^ 40122))
                 top = undo;
-            var channel = GetSeedsFromPID(RNG.XDRNG, bot, top);
+            var channel = GetSeedsFromPIDEuclid(RNG.XDRNG, top, bot);
             foreach (var seed in channel)
             {
                 var C = RNG.XDRNG.Advance(seed, 3); // held item
@@ -421,22 +422,32 @@ namespace PKHeX.Core
             }
 
             uint pid = (uint)((pk.TID ^ pk.SID) >> 8 ^ 0xFF) << 24; // the most significant byte of the PID is chosen so the Pokémon can never be shiny.
+            // Ensure nature is set to required nature without affecting shininess
             pid += nature - pid % 25;
-            uint gv = 0;
-            switch (pk.Gender)
+
+            // Ensure Gender is set to required gender without affecting other properties
+            // If Gender is modified, modify the ability if appropriate
+            int currentGender = pk.Gender;
+            if (currentGender != 2) // either m/f
             {
-                case 0: // Male
-                    var gr = pk.PersonalInfo.Gender + 1;
-                    gv = (uint) (((gr - (pid & 0xFF)) / 25 + 1) * 25); // Ensures gender is set to male without affecting nature.
-                    break;
-                case 1: // Female
-                    var gr2 = pk.PersonalInfo.Gender;
-                    gv = (uint) ((((pid & 0xFF) - gr2) / 25 + 1) * 25); // Ensures gender is set to female without affecting nature
-                    break;
+                var gr = pk.PersonalInfo.Gender;
+                var pidGender = (pid & 0xFF) < gr ? 1 : 0;
+                if (currentGender != pidGender)
+                {
+                    if (currentGender == 0) // Male
+                    {
+                        pid += (uint) (((gr - (pid & 0xFF)) / 25 + 1) * 25);
+                        if ((nature & 1) != (pid & 1))
+                            pid += 25;
+                    }
+                    else
+                    {
+                        pid -= (uint) ((((pid & 0xFF) - gr) / 25 + 1) * 25);
+                        if ((nature & 1) != (pid & 1))
+                            pid -= 25;
+                    }
+                }
             }
-            pid += gv;
-            if ((nature & 1) != (pid & 1)) // If ability does not match the chosen ability
-                pid -= 25; // Switches ability without affecting nature
 
             if (pid == oldpid)
             {
@@ -455,28 +466,47 @@ namespace PKHeX.Core
 
         private static IEnumerable<uint> GetSeedsFromPID(RNG method, uint a, uint b)
         {
-            uint cmp = a << 16;
-            uint x = b << 16;
-            for (uint i = 0; i <= 0xFFFF; i++)
-            {
-                var seed = x | i;
-                if ((method.Next(seed) & 0xFFFF0000) == cmp)
-                    yield return method.Prev(seed);
-            }
+            Debug.Assert(a >> 16 == 0);
+            Debug.Assert(b >> 16 == 0);
+            uint second = a << 16;
+            uint first = b << 16;
+            return method.RecoverLower16Bits(first, second);
         }
         private static IEnumerable<uint> GetSeedsFromIVs(RNG method, uint a, uint b)
         {
-            uint cmp = a << 16 & 0x7FFF0000;
-            uint x = b << 16 & 0x7FFF0000;
-            for (uint i = 0; i <= 0xFFFF; i++)
+            Debug.Assert(a >> 15 == 0);
+            Debug.Assert(b >> 15 == 0);
+            uint second = a << 16;
+            uint first = b << 16;
+            var pairs = method.RecoverLower16Bits(first, second)
+                .Concat(method.RecoverLower16Bits(first, second ^ 0x80000000));
+            foreach (var z in pairs)
             {
-                var seed = x | i;
-                if ((method.Next(seed) & 0x7FFF0000) != cmp)
-                    continue;
-                var prev = method.Prev(seed);
-                yield return prev;
-                yield return prev ^ 0x80000000;
+                yield return z;
+                yield return z ^ 0x80000000; // sister bitflip
             }
+        }
+        public static IEnumerable<uint> GetSeedsFromIVsSkip(RNG method, uint rand1, uint rand3)
+        {
+            Debug.Assert(rand1 >> 15 == 0);
+            Debug.Assert(rand3 >> 15 == 0);
+            rand1 <<= 16;
+            rand3 <<= 16;
+            var seeds = method.RecoverLower16BitsGap(rand1, rand3)
+                .Concat(method.RecoverLower16BitsGap(rand1, rand3 ^ 0x80000000));
+            foreach (var z in seeds)
+            {
+                yield return z;
+                yield return z ^ 0x80000000; // sister bitflip
+            }
+        }
+        public static IEnumerable<uint> GetSeedsFromPIDEuclid(RNG method, uint rand1, uint rand2)
+        {
+            return method.RecoverLower16BitsEuclid16(rand1 << 16, rand2 << 16);
+        }
+        public static IEnumerable<uint> GetSeedsFromIVsEuclid(RNG method, uint rand1, uint rand2)
+        {
+            return method.RecoverLower16BitsEuclid15(rand1 << 16, rand2 << 16);
         }
 
         /// <summary>
@@ -525,7 +555,7 @@ namespace PKHeX.Core
             var pid = pkm.PID;
             var top = pid >> 16;
             var bot = pid & 0xFFFF;
-            var seeds = GetSeedsFromPID(RNG.XDRNG, bot, top);
+            var seeds = GetSeedsFromPIDEuclid(RNG.XDRNG, top, bot);
             foreach (var seed in seeds)
             {
                 // check for valid encounter slot info
@@ -593,9 +623,8 @@ namespace PKHeX.Core
             switch (encounter)
             {
                 case EncounterStatic s:
-                    if (s == Encounters4.SpikyEaredPichu) // nonshiny forced nature, undocumented
-                        return val == PIDType.None;
-                    if (s.Location == 233 && s.Gift)
+                    if (s == Encounters4.SpikyEaredPichu // nonshiny forced nature
+                     || s.Location == 233 && s.Gift) // Pokewalker
                         return val == PIDType.Pokewalker;
                     return s.Shiny == true ? val == PIDType.ChainShiny : val == PIDType.Method_1;
                 case EncounterSlot sl:

@@ -1143,14 +1143,9 @@ namespace PKHeX.Core
             588, // Relic Band
             589, // Relic Statue
             590, // Relic Crown
-            658, // Ampharosite
-            684, // Latiasite
-            685, // Latiosite
             710, // Jaw Fossil
             711, // Sail Fossil
             715, // Fairy Gem
-            755, // Altarianite
-            764, // Diancite
         };
         #endregion
         internal static readonly bool[] ReleasedHeldItems_7 = Enumerable.Range(0, MaxItemID_7+1).Select(i => HeldItems_SM.Contains((ushort)i) && !UnreleasedHeldItems_7.Contains(i)).ToArray();

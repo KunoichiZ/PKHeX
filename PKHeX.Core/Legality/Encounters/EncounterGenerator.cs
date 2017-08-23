@@ -94,14 +94,17 @@ namespace PKHeX.Core
             var deferred = new List<IEncounterable>();
             foreach (var t in GetValidEncounterTrades(pkm, game))
             {
+                if (pkm.Format >= 7)
+                {
+                    deferred.Add(t);
+                    continue;
+                }
                 yield return new GBEncounterData(pkm, gen, t, game);
             }
-            foreach (var s in GetValidStaticEncounter(pkm, game))
+            foreach (var s in GetValidStaticEncounter(pkm, game).Where(z => species.Contains(z.Species)))
             {
                 // Valid stadium and non-stadium encounters, return only non-stadium encounters, they are less restrictive
-                if (!species.Contains(s.Species))
-                    continue;
-                if (game == GameVersion.RBY && s.Species != 54 && s.Version == GameVersion.Stadium)
+                if (s.Version == GameVersion.Stadium || s.Version == GameVersion.Stadium2)
                 {
                     deferred.Add(s);
                     continue;
@@ -110,8 +113,9 @@ namespace PKHeX.Core
                 {
                     // no Gen2 events outside of Japan besides Celebi
                     var jp = (pkm as PK2)?.Japanese ?? (pkm as PK1)?.Japanese;
-                    if (jp != true)
-                        continue;
+                    if (jp == true)
+                        deferred.Add(s);
+                    continue;
                 }
                 if (game == GameVersion.GSC && !s.EggEncounter && s.Version == GameVersion.C && !pkm.HasOriginalMetLocation)
                     continue;
@@ -243,10 +247,18 @@ namespace PKHeX.Core
                 { yield return z; ++ctr; }
             }
 
+            var deferred = new List<IEncounterable>();
             bool safariSport = pkm.Ball == 0x05 || pkm.Ball == 0x18; // never static encounters
             if (!safariSport)
             foreach (var z in GetValidStaticEncounter(pkm))
-            { yield return z; ++ctr; }
+            {
+                if (z.Gift && pkm.Ball != 4)
+                    deferred.Add(z);
+                else
+                {
+                    yield return z; ++ctr;
+                } 
+            }
             // if (ctr != 0) yield break;
             foreach (var z in GetValidWildEncounters(pkm))
             { yield return z; ++ctr; }
@@ -258,6 +270,8 @@ namespace PKHeX.Core
             // do static encounters if they were deferred to end, spit out any possible encounters for invalid pkm
             if (safariSport)
             foreach (var z in GetValidStaticEncounter(pkm))
+                yield return z;
+            foreach (var z in deferred)
                 yield return z;
         }
         private static IEnumerable<IEncounterable> GenerateRawEncounters3(PKM pkm)
@@ -340,7 +354,10 @@ namespace PKHeX.Core
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
                 if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0 && pkm.Format > 3)
-                    continue;
+                {
+                    if (!pkm.IsEgg)
+                        continue;
+                }
                 if (pkm.Gen3 && e.EggLocation != 0) // Gen3 Egg
                 {
                     if (pkm.Format == 3 && pkm.IsEgg && e.EggLocation != pkm.Met_Location)
@@ -1075,7 +1092,7 @@ namespace PKHeX.Core
                 }
                 else
                 {
-                    if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30002) // traded
+                    if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30003) // traded
                         continue;
                     if (pkm.IsEgg && !pkm.IsNative)
                         continue;

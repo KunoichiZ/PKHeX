@@ -85,16 +85,36 @@ namespace PKHeX.Core
                 case EncounterStatic s:
                     if (s.Shiny != null && (bool)s.Shiny ^ pkm.IsShiny)
                         AddLine(Severity.Invalid, V209, CheckIdentifier.Shiny);
+                    
+                    // gen5 correlation
+                    if (pkm.GenNumber != 5)
+                        break;
+                    if (s.Location == 75) // Entree Forest
+                        break;
+                    if (s.Gift || s.Roaming || s.Ability != 4)
+                        break;
+                    if (s.NSparkle)
+                        break;
+                    VerifyG5PID_IDCorrelation();
                     break;
                 case EncounterSlot w:
                     if (pkm.IsShiny && w.Type == SlotType.HiddenGrotto)
                         AddLine(Severity.Invalid, V221, CheckIdentifier.Shiny);
+                    if (pkm.GenNumber == 5 && w.Type != SlotType.HiddenGrotto)
+                        VerifyG5PID_IDCorrelation();
                     break;
                 case PCD d: // fixed PID
                     if (d.Gift.PK.PID != 1 && pkm.EncryptionConstant != d.Gift.PK.PID)
                         AddLine(Severity.Invalid, V410, CheckIdentifier.Shiny);
                     break;
             }
+        }
+        private void VerifyG5PID_IDCorrelation()
+        {
+            var pid = pkm.EncryptionConstant;
+            var result = (pid & 1) ^ (pid >> 31) ^ (pkm.TID & 1) ^ (pkm.SID & 1);
+            if (result != 0)
+                AddLine(Severity.Invalid, V411, CheckIdentifier.PID);
         }
         private void VerifyECPIDWurmple()
         {
@@ -466,16 +486,22 @@ namespace PKHeX.Core
             }
             if ((EncounterMatch as EncounterStatic)?.Version == GameVersion.Stadium)
             {
-                if (tr == "STADIUM" && pkm.TID == 2000)
-                    AddLine(Severity.Valid, V403, CheckIdentifier.Trainer);
-                else if (tr == "スタジアム" && pkm.TID == 1999)
-                    AddLine(Severity.Valid, V404, CheckIdentifier.Trainer);
-                else
+                bool jp = (pkm as PK1)?.Japanese ?? (pkm as PK2)?.Japanese ?? pkm.Language != 2;
+                bool valid = GetIsStadiumOTIDValid(jp, tr);
+                if (!valid)
                     AddLine(Severity.Invalid, V402, CheckIdentifier.Trainer);
+                else
+                    AddLine(Severity.Valid, jp ? V404 : V403, CheckIdentifier.Trainer);
             }
 
             if (pkm.OT_Gender == 1 && (pkm.Format == 2 && pkm.Met_Location == 0 || !Info.Game.Contains(GameVersion.C)))
                 AddLine(Severity.Invalid, V408, CheckIdentifier.Trainer);
+        }
+        private bool GetIsStadiumOTIDValid(bool jp, string tr)
+        {
+            if (jp)
+                return tr == "スタジアム" && pkm.TID == 1999;
+            return tr == "STADIUM" && pkm.TID == 2000;
         }
         #endregion
         private void VerifyHyperTraining()
@@ -783,7 +809,7 @@ namespace PKHeX.Core
                 var c3 = u4.RibbonBitsContest3(); var c3n = u4.RibbonNamesContest3();
                 var c4 = u4.RibbonBitsContest4(); var c4n = u4.RibbonNamesContest4();
                 var iter3 = gen == 3 ? getMissingContestRibbons(c3, c3n) : GetRibbonMessageNone(c3, c3n);
-                var iter4 = gen == 4 && IsAllowedInContest4(pkm.Species) ? getMissingContestRibbons(c4, c4n) : GetRibbonMessageNone(c4, c4n);
+                var iter4 = (gen == 3 || gen == 4) && IsAllowedInContest4(pkm.Species) ? getMissingContestRibbons(c4, c4n) : GetRibbonMessageNone(c4, c4n);
                 foreach (var z in iter3.Concat(iter4))
                     yield return z;
 
@@ -2336,8 +2362,14 @@ namespace PKHeX.Core
         }
         private void VerifyFatefulIngameActive()
         {
-            if (pkm.Version == 15 && pkm is XK3 && Info.WasXD)
+            if (pkm.Version == 15 && pkm is XK3 xk3 && Info.WasXD)
+            {
+                // can't have fateful until traded away, which clears ShadowID
+                if (xk3.FatefulEncounter && xk3.ShadowID != 0)
+                    AddLine(Severity.Invalid, V325, CheckIdentifier.Fateful);
+
                 return; // fateful is set when transferred away
+            }
 
             if (pkm.FatefulEncounter)
                 AddLine(Severity.Valid, V323, CheckIdentifier.Fateful);
@@ -2359,10 +2391,23 @@ namespace PKHeX.Core
             {
                 if (pkm.IVs.Any(iv => iv != 30))
                     AddLine(Severity.Invalid, V218, CheckIdentifier.IVs);
-                if (pkm.OT_Name != "N" || pkm.TID != 00002 || pkm.SID != 00000)
+                if (!VerifyNsPKMOTValid())
                     AddLine(Severity.Invalid, V219, CheckIdentifier.Trainer);
                 if (pkm.IsShiny)
                     AddLine(Severity.Invalid, V220, CheckIdentifier.Shiny);
+            }
+        }
+        private bool VerifyNsPKMOTValid()
+        {
+            if (pkm.TID != 00002 || pkm.SID != 00000)
+                return false;
+
+            switch (pkm.Language)
+            {
+                case 1: // jp
+                    return pkm.OT_Name == "Ｎ";
+                default:
+                    return pkm.OT_Name == "N";
             }
         }
         private void VerifyVersionEvolution()

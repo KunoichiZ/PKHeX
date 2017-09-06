@@ -76,6 +76,9 @@ namespace PKHeX.Core
                 else
                     deferred.Add(z);
             }
+            if (deferred.Count == 0)
+                yield break;
+
             info.PIDIVMatches = false;
             foreach (var z in deferred)
                 yield return z;
@@ -99,7 +102,7 @@ namespace PKHeX.Core
                     deferred.Add(t);
                     continue;
                 }
-                yield return new GBEncounterData(pkm, gen, t, game);
+                yield return new GBEncounterData(pkm, gen, t, t.Version);
             }
             foreach (var s in GetValidStaticEncounter(pkm, game).Where(z => species.Contains(z.Species)))
             {
@@ -119,13 +122,13 @@ namespace PKHeX.Core
                 }
                 if (game == GameVersion.GSC && !s.EggEncounter && s.Version == GameVersion.C && !pkm.HasOriginalMetLocation)
                     continue;
-                yield return new GBEncounterData(pkm, gen, s, game);
+                yield return new GBEncounterData(pkm, gen, s, s.Version);
             }
-            foreach (var e in GetValidWildEncounters(pkm, game))
+            foreach (var e in GetValidWildEncounters(pkm, game).OfType<EncounterSlot1>())
             {
                 if (!species.Contains(e.Species))
                     continue;
-                yield return new GBEncounterData(pkm, gen, e, game);
+                yield return new GBEncounterData(pkm, gen, e, e.Version);
             }
 
             if (game == GameVersion.GSC || game == GameVersion.C)
@@ -279,10 +282,16 @@ namespace PKHeX.Core
             foreach (var z in GetValidGifts(pkm))
                 yield return z;
 
+            var deferred = new List<IEncounterable>();
             bool safari = pkm.Ball == 0x05; // never static encounters
             if (!safari)
             foreach (var z in GetValidStaticEncounter(pkm))
-                yield return z;
+            {
+                if (z.Gift && pkm.Ball != 4)
+                    deferred.Add(z);
+                else
+                    yield return z;
+            }
             foreach (var z in GetValidWildEncounters(pkm))
                 yield return z;
             foreach (var z in GetValidEncounterTrades(pkm))
@@ -298,6 +307,9 @@ namespace PKHeX.Core
 
             foreach (var z in GenerateEggs(pkm))
                 yield return z;
+
+            foreach (var z in deferred)
+                yield return z;
         }
 
         // EncounterStatic
@@ -305,6 +317,32 @@ namespace PKHeX.Core
         {
             return type == 0 && !(e is EncounterStaticTyped)
                    || e is EncounterStaticTyped t && t.TypeEncounter.Contains(type);
+        }
+        private static bool IsValidCatchRatePK1(EncounterStatic e, PK1 pk1)
+        {
+            var catch_rate = pk1.Catch_Rate;
+            // Pure gen 1, trades can be filter by catch rate
+            if ((pk1.Species == 25 || pk1.Species == 26) && catch_rate == 190)
+                // Red Blue Pikachu, is not a static encounter
+                return false;
+
+            if (e.Version == GameVersion.Stadium)
+            {
+                switch (e.Species)
+                {
+                    default:
+                        return Stadium_CatchRate.Contains(catch_rate);
+                    case 054: // Psyduck
+                        // Amnesia Psyduck has different catch rates depending on language
+                        return catch_rate == (pk1.Japanese ? 167 : 168);
+                }
+            }
+
+            // Encounters can have different Catch Rates (RBG vs Y)
+            var rate = e.Version == GameVersion.Y
+                ? PersonalTable.Y[e.Species].CatchRate
+                : PersonalTable.RB[e.Species].CatchRate;
+            return catch_rate == rate;
         }
         private static IEnumerable<EncounterStatic> GetValidStaticEncounter(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
@@ -353,7 +391,7 @@ namespace PKHeX.Core
             {
                 if (e.Nature != Nature.Random && pkm.Nature != (int)e.Nature)
                     continue;
-                if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0 && pkm.Format > 3)
+                if (pkm.WasEgg ^ e.EggEncounter && pkm.Egg_Location == 0 && pkm.Format > 3 && pkm.GenNumber > 3)
                 {
                     if (!pkm.IsEgg)
                         continue;
@@ -426,32 +464,6 @@ namespace PKHeX.Core
                 if (e.EggLocation == 60002 && e.Relearn[0] == 0 && pkm.RelearnMoves.Any(z => z != 0)) // gen7 eevee edge case
                     continue;
 
-                if (pkm is PK1 pk1 && pkm.Gen1_NotTradeback)
-                {
-                    var catch_rate = pk1.Catch_Rate;
-                    var japanese = pk1.Japanese;
-                    // Pure gen 1, trades can be filter by catch rate
-                    if ((pkm.Species == 25 || pkm.Species == 26) && catch_rate == 190)
-                        // Red Blue Pikachu, is not a static encounter
-                        continue;
-
-                    if (e.Version == GameVersion.Stadium)
-                    {
-                        if (e.Species != 054 && !Stadium_CatchRate.Contains(catch_rate))
-                            continue;
-                        // Amnesia Psyduck have different catch rate in japanese stadium and international stadium
-                        if (e.Species == 054 && japanese && catch_rate != 167)
-                            continue;
-                        if (e.Species == 054 && !japanese && catch_rate != 168)
-                            continue;
-                    }
-                    // Encounters with different catch rates in yellow and redblue are duplicated with different gameverion
-                    else if (e.Version == GameVersion.YW && catch_rate != PersonalTable.Y[e.Species].CatchRate)
-                        continue;
-                    else if (e.Version != GameVersion.YW && catch_rate != PersonalTable.RB[e.Species].CatchRate)
-                        continue;
-                }
-
                 // Defer to EC/PID check
                 // if (e.Shiny != null && e.Shiny != pkm.IsShiny)
                 // continue;
@@ -459,6 +471,10 @@ namespace PKHeX.Core
                 // Defer ball check to later
                 // if (e.Gift && pkm.Ball != 4) // PokéBall
                 // continue;
+
+                if (pkm is PK1 pk1 && pk1.Gen1_NotTradeback)
+                    if (!IsValidCatchRatePK1(e, pk1))
+                        continue;
 
                 if (!AllowGBCartEra && GameVersion.GBCartEraOnly.Contains(e.Version))
                     continue; // disallow gb cart era encounters (as they aren't obtainable by Main/VC series)
@@ -471,7 +487,7 @@ namespace PKHeX.Core
             foreach (var e in deferred)
                 yield return e;
         }
-        private static IEnumerable<EncounterStatic> GetStaticEncounters(PKM pkm, int lvl = -1, GameVersion gameSource = GameVersion.Any)
+        private static IEnumerable<EncounterStatic> GetStaticEncounters(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion)pkm.Version;
@@ -480,16 +496,16 @@ namespace PKHeX.Core
             switch (pkm.GenNumber)
             {
                 case 1:
-                    return GetStatic(pkm, table, maxspeciesorigin: MaxSpeciesID_1, lvl: lvl);
+                    return GetStatic(pkm, table, maxspeciesorigin: MaxSpeciesID_1);
                 case 2:
-                    return GetStatic(pkm, table, maxspeciesorigin: MaxSpeciesID_2, lvl: lvl);
+                    return GetStatic(pkm, table, maxspeciesorigin: MaxSpeciesID_2);
                 default:
-                    return GetStatic(pkm, table, lvl);
+                    return GetStatic(pkm, table);
             }
         }
-        private static IEnumerable<EncounterStatic> GetStatic(PKM pkm, IEnumerable<EncounterStatic> table, int maxspeciesorigin = -1, int lvl = -1)
+        private static IEnumerable<EncounterStatic> GetStatic(PKM pkm, IEnumerable<EncounterStatic> table, int maxspeciesorigin = -1, int lvl = -1, bool skip = false)
         {
-            IEnumerable<DexLevel> dl = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: lvl);
+            IEnumerable<DexLevel> dl = GetValidPreEvolutions(pkm, maxspeciesorigin: maxspeciesorigin, lvl: lvl, skipChecks: skip);
             return table.Where(e => dl.Any(d => d.Species == e.Species));
         }
 
@@ -657,30 +673,31 @@ namespace PKHeX.Core
                 return true;
 
             // Pure gen 1, slots can be filter by catch rate
+            var rate = pk1.Catch_Rate;
             switch (pkm.Species)
             {
                 // Pikachu
-                case 25 when pk1.Catch_Rate == 163:
-                case 26 when pk1.Catch_Rate == 163:
+                case 25 when rate == 163:
+                case 26 when rate == 163:
                     return false; // Yellow Pikachu is not a wild encounter
 
                 // Kadabra (YW)
-                case 64 when pk1.Catch_Rate == 96:
-                case 65 when pk1.Catch_Rate == 96:
+                case 64 when rate == 96:
+                case 65 when rate == 96:
                     vs = vs.Where(s => s.Species == 64);
                     Gen1Version = GameVersion.YW;
                     return true;
 
                 // Kadabra (RB)
-                case 64 when pk1.Catch_Rate == 100:
-                case 65 when pk1.Catch_Rate == 100:
+                case 64 when rate == 100:
+                case 65 when rate == 100:
                     vs = vs.Where(s => s.Species == 64);
                     Gen1Version = GameVersion.RB;
                     return true;
 
                 // Dragonair (YW)
-                case 148 when pk1.Catch_Rate == 27:
-                case 149 when pk1.Catch_Rate == 27:
+                case 148 when rate == 27:
+                case 149 when rate == 27:
                     vs = vs.Where(s => s.Species == 148); // Yellow Dragonair, ignore Dratini encounters
                     Gen1Version = GameVersion.YW;
                     return true;
@@ -689,12 +706,12 @@ namespace PKHeX.Core
                 case 148:
                 case 149:
                     // Red blue dragonair have the same catch rate as dratini, it could also be a dratini from any game
-                    vs = vs.Where(s => pk1.Catch_Rate == PersonalTable.RB[s.Species].CatchRate);
+                    vs = vs.Where(s => rate == PersonalTable.RB[s.Species].CatchRate);
                     RBDragonair = true;
                     return true;
 
                 default:
-                    vs = vs.Where(s => pk1.Catch_Rate == PersonalTable.RB[s.Species].CatchRate);
+                    vs = vs.Where(s => rate == PersonalTable.RB[s.Species].CatchRate);
                     return true;
             }
         }
@@ -776,7 +793,7 @@ namespace PKHeX.Core
                 case 6:
                     return pkm.XY ? Encounters6.TradeGift_XY : Encounters6.TradeGift_AO;
                 case 7:
-                    return pkm.SM ? Encounters7.TradeGift_SM : null;
+                    return pkm.SM ? Encounters7.TradeGift_SM : Encounters7.TradeGift_USUM;
             }
             return null;
         }
@@ -950,45 +967,11 @@ namespace PKHeX.Core
 
             var validWC3 = new List<MysteryGift>();
             var vs = GetValidPreEvolutions(pkm, MaxSpeciesID_3).ToArray();
-            foreach (WC3 wc in DB.OfType<WC3>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
+            var enumerable = DB.OfType<WC3>().Where(wc => vs.Any(dl => dl.Species == wc.Species));
+            foreach (WC3 wc in enumerable)
             {
-                // Gen3 Version MUST match.
-                if (wc.Version != 0 && !((GameVersion)wc.Version).Contains((GameVersion)pkm.Version))
+                if (!GetIsMatchWC3(pkm, wc))
                     continue;
-
-                bool hatchedEgg = wc.IsEgg && !pkm.IsEgg;
-                if (!hatchedEgg)
-                {
-                    if (wc.SID != -1 && wc.SID != pkm.SID) continue;
-                    if (wc.TID != -1 && wc.TID != pkm.TID) continue;
-                    if (wc.OT_Name != null && wc.OT_Name != pkm.OT_Name) continue;
-                    if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
-                }
-
-                if (wc.Language != -1 && wc.Language != pkm.Language) continue;
-                if (wc.Ball != pkm.Ball) continue;
-                if (wc.Fateful != pkm.FatefulEncounter)
-                {
-                    // XD Gifts only at level 20 get flagged after transfer
-                    bool valid = wc.Level == 20 && pkm is XK3;
-                    if (!valid)
-                        continue;
-                }
-
-                if (pkm.IsNative)
-                {
-                    if (wc.Met_Level != pkm.Met_Level)
-                        continue;
-                    if (wc.Met_Location != pkm.Met_Location && (!wc.IsEgg || pkm.IsEgg))
-                        continue;
-                }
-                else
-                {
-                    if (pkm.IsEgg)
-                        break;
-                    if (wc.Level > pkm.Met_Level)
-                        continue;
-                }
 
                 if (wc.Species == pkm.Species) // best match
                     yield return wc;
@@ -1005,65 +988,27 @@ namespace PKHeX.Core
 
             if (IsRangerManaphy(pkm))
             {
-                yield return new PGT { Data = { [0] = 7, [8] = 1 } };
+                if (pkm.Language != 8) // never korean
+                    yield return new PGT { Data = { [0] = 7, [8] = 1 } };
                 yield break;
             }
 
-            var validPCD = new List<MysteryGift>();
+            var deferred = new List<MysteryGift>();
             var vs = GetValidPreEvolutions(pkm).ToArray();
-            foreach (PCD mg in DB.OfType<PCD>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
+            var enumerable = DB.OfType<PCD>().Where(wc => vs.Any(dl => dl.Species == wc.Species));
+            foreach (PCD mg in enumerable)
             {
                 var wc = mg.Gift.PK;
-                if (!wc.IsEgg)
-                {
-                    if (wc.TID != pkm.TID) continue;
-                    if (wc.SID != pkm.SID) continue;
-                    if (wc.OT_Name != pkm.OT_Name) continue;
-                    if (wc.OT_Gender != pkm.OT_Gender) continue;
-                    if (wc.Language != 0 && wc.Language != pkm.Language) continue;
-
-                    if (pkm.Format != 4) // transferred
-                    {
-                        // met location: deferred to general transfer check
-                        if (wc.CurrentLevel > pkm.Met_Level) continue;
-                    }
-                    else
-                    {
-                        if (wc.Egg_Location + 3000 != pkm.Met_Location) continue;
-                        if (wc.CurrentLevel != pkm.Met_Level) continue;
-                    }
-                }
-                else // Egg
-                {
-                    if (wc.Egg_Location + 3000 != pkm.Egg_Location && pkm.Egg_Location != 2002) // traded
-                        continue;
-                    if (wc.CurrentLevel != pkm.Met_Level)
-                        continue;
-                    if (pkm.IsEgg && !pkm.IsNative)
-                        continue;
-                }
-
-                if (wc.AltForm != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) continue;
-
-                if (wc.Ball != pkm.Ball) continue;
-                if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) continue;
-                if (wc.PID == 1 && pkm.IsShiny) continue;
-                if (wc.Gender != 3 && wc.Gender != pkm.Gender) continue;
-
-                if (wc.CNT_Cool > pkm.CNT_Cool) continue;
-                if (wc.CNT_Beauty > pkm.CNT_Beauty) continue;
-                if (wc.CNT_Cute > pkm.CNT_Cute) continue;
-                if (wc.CNT_Smart > pkm.CNT_Smart) continue;
-                if (wc.CNT_Tough > pkm.CNT_Tough) continue;
-                if (wc.CNT_Sheen > pkm.CNT_Sheen) continue;
+                if (!GetIsMatchPCD(pkm, wc, vs))
+                    continue;
 
                 bool receivable = mg.CanBeReceivedBy(pkm.Version);
                 if (wc.Species == pkm.Species && receivable) // best match
                     yield return mg;
                 else
-                    validPCD.Add(mg);
+                    deferred.Add(mg);
             }
-            foreach (var z in validPCD)
+            foreach (var z in deferred)
                 yield return z;
         }
         private static IEnumerable<MysteryGift> GetMatchingPGF(PKM pkm, IEnumerable<MysteryGift> DB)
@@ -1071,180 +1016,295 @@ namespace PKHeX.Core
             if (DB == null)
                 yield break;
 
-            var validPGF = new List<MysteryGift>();
+            var deferred = new List<MysteryGift>();
             var vs = GetValidPreEvolutions(pkm).ToArray();
-            foreach (PGF wc in DB.OfType<PGF>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
+            var enumerable = DB.OfType<PGF>().Where(wc => vs.Any(dl => dl.Species == wc.Species));
+            foreach (PGF wc in enumerable)
             {
-                if (!wc.IsEgg)
-                {
-                    if (wc.SID != pkm.SID) continue;
-                    if (wc.TID != pkm.TID) continue;
-                    if (wc.OT != pkm.OT_Name) continue;
-                    if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) continue;
-                    if (wc.PID != 0 && pkm.PID != wc.PID) continue;
-                    if (wc.PIDType == 0 && pkm.IsShiny) continue;
-                    if (wc.PIDType == 2 && !pkm.IsShiny) continue;
-                    if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) continue;
-                    if (wc.Language != 0 && wc.Language != pkm.Language) continue;
-
-                    if (wc.EggLocation != pkm.Egg_Location) continue;
-                    if (wc.MetLocation != pkm.Met_Location) continue;
-                }
-                else
-                {
-                    if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30003) // traded
-                        continue;
-                    if (pkm.IsEgg && !pkm.IsNative)
-                        continue;
-                }
-
-                if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) continue;
-
-                if (wc.Level != pkm.Met_Level) continue;
-                if (wc.Ball != pkm.Ball) continue;
-                if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) continue;
-                if (wc.Gender != 2 && wc.Gender != pkm.Gender) continue;
-
-                if (wc.CNT_Cool > pkm.CNT_Cool) continue;
-                if (wc.CNT_Beauty > pkm.CNT_Beauty) continue;
-                if (wc.CNT_Cute > pkm.CNT_Cute) continue;
-                if (wc.CNT_Smart > pkm.CNT_Smart) continue;
-                if (wc.CNT_Tough > pkm.CNT_Tough) continue;
-                if (wc.CNT_Sheen > pkm.CNT_Sheen) continue;
+                if (!GetIsMatchPGF(pkm, wc, vs))
+                    continue;
 
                 if (wc.Species == pkm.Species) // best match
                     yield return wc;
                 else
-                    validPGF.Add(wc);
+                    deferred.Add(wc);
             }
-            foreach (var z in validPGF)
+            foreach (var z in deferred)
                 yield return z;
         }
         private static IEnumerable<MysteryGift> GetMatchingWC6(PKM pkm, IEnumerable<MysteryGift> DB)
         {
             if (DB == null)
                 yield break;
-            List<MysteryGift> validWC6 = new List<MysteryGift>();
+            var deferred = new List<MysteryGift>();
             var vs = GetValidPreEvolutions(pkm).ToArray();
-            foreach (WC6 wc in DB.OfType<WC6>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
+            var enumerable = DB.OfType<WC6>().Where(wc => vs.Any(dl => dl.Species == wc.Species));
+            foreach (WC6 wc in enumerable)
             {
-                if (pkm.Egg_Location == 0) // Not Egg
-                {
-                    if (wc.CardID != pkm.SID) continue;
-                    if (wc.TID != pkm.TID) continue;
-                    if (wc.OT != pkm.OT_Name) continue;
-                    if (wc.OTGender != pkm.OT_Gender) continue;
-                    if (wc.PIDType == 0 && pkm.PID != wc.PID) continue;
-                    if (wc.PIDType == 2 && !pkm.IsShiny) continue;
-                    if (wc.PIDType == 3 && pkm.IsShiny) continue;
-                    if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) continue;
-                    if (wc.EncryptionConstant != 0 && wc.EncryptionConstant != pkm.EncryptionConstant) continue;
-                    if (wc.Language != 0 && wc.Language != pkm.Language) continue;
-                }
-                if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) continue;
-
-                if (wc.IsEgg)
-                {
-                    if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30002) // traded
-                        continue;
-                    if (pkm.IsEgg && !pkm.IsNative)
-                        continue;
-                }
-                else
-                {
-                    if (wc.EggLocation != pkm.Egg_Location) continue;
-                    if (wc.MetLocation != pkm.Met_Location) continue;
-                }
-
-                if (wc.Level != pkm.Met_Level) continue;
-                if (wc.Ball != pkm.Ball) continue;
-                if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) continue;
-                if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) continue;
-                if (wc.Gender != 3 && wc.Gender != pkm.Gender) continue;
-
-                if (wc.CNT_Cool > pkm.CNT_Cool) continue;
-                if (wc.CNT_Beauty > pkm.CNT_Beauty) continue;
-                if (wc.CNT_Cute > pkm.CNT_Cute) continue;
-                if (wc.CNT_Smart > pkm.CNT_Smart) continue;
-                if (wc.CNT_Tough > pkm.CNT_Tough) continue;
-                if (wc.CNT_Sheen > pkm.CNT_Sheen) continue;
+                if (!GetIsMatchWC6(pkm, wc, vs))
+                    continue;
 
                 if (wc.Species == pkm.Species) // best match
                     yield return wc;
                 else
-                    validWC6.Add(wc);
+                    deferred.Add(wc);
             }
-            foreach (var z in validWC6)
+            foreach (var z in deferred)
                 yield return z;
         }
         private static IEnumerable<MysteryGift> GetMatchingWC7(PKM pkm, IEnumerable<MysteryGift> DB)
         {
             if (DB == null)
                 yield break;
-            List<MysteryGift> validWC7 = new List<MysteryGift>();
+            var deferred = new List<MysteryGift>();
             var vs = GetValidPreEvolutions(pkm).ToArray();
-            foreach (WC7 wc in DB.OfType<WC7>().Where(wc => vs.Any(dl => dl.Species == wc.Species)))
+            var enumerable = DB.OfType<WC7>().Where(wc => vs.Any(dl => dl.Species == wc.Species));
+            foreach (WC7 wc in enumerable)
             {
-                if (pkm.Egg_Location == 0) // Not Egg
-                {
-                    if (wc.OTGender != 3)
-                    {
-                        if (wc.SID != pkm.SID) continue;
-                        if (wc.TID != pkm.TID) continue;
-                        if (wc.OTGender != pkm.OT_Gender) continue;
-                    }
-                    if (!string.IsNullOrEmpty(wc.OT) && wc.OT != pkm.OT_Name) continue;
-                    if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) continue;
-                    if (wc.EncryptionConstant != 0 && wc.EncryptionConstant != pkm.EncryptionConstant) continue;
-                    if (wc.Language != 0 && wc.Language != pkm.Language) continue;
-                }
-                if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) continue;
-
-                if (wc.IsEgg)
-                {
-                    if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30002) // traded
-                        continue;
-                    if (pkm.IsEgg && !pkm.IsNative)
-                        continue;
-                }
-                else
-                {
-                    if (wc.EggLocation != pkm.Egg_Location) continue;
-                    if (wc.MetLocation != pkm.Met_Location) continue;
-                }
-
-                if (wc.MetLevel != pkm.Met_Level) continue;
-                if (wc.Ball != pkm.Ball) continue;
-                if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) continue;
-                if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) continue;
-                if (wc.Gender != 3 && wc.Gender != pkm.Gender) continue;
-
-                if (wc.CNT_Cool > pkm.CNT_Cool) continue;
-                if (wc.CNT_Beauty > pkm.CNT_Beauty) continue;
-                if (wc.CNT_Cute > pkm.CNT_Cute) continue;
-                if (wc.CNT_Smart > pkm.CNT_Smart) continue;
-                if (wc.CNT_Tough > pkm.CNT_Tough) continue;
-                if (wc.CNT_Sheen > pkm.CNT_Sheen) continue;
-
-                if (wc.PIDType == 2 && !pkm.IsShiny) continue;
-                if (wc.PIDType == 3 && pkm.IsShiny) continue;
+                if (!GetIsMatchWC7(pkm, wc, vs))
+                    continue;
 
                 if ((pkm.SID << 16 | pkm.TID) == 0x79F57B49) // Greninja WC has variant PID and can arrive @ 36 or 37
                 {
                     if (!pkm.IsShiny)
-                        validWC7.Add(wc);
+                        deferred.Add(wc);
                     continue;
                 }
-                if (wc.PIDType == 0 && pkm.PID != wc.PID) continue;
+                if (wc.PIDType == 0 && pkm.PID != wc.PID)
+                    continue;
 
                 if (wc.Species == pkm.Species) // best match
                     yield return wc;
                 else
-                    validWC7.Add(wc);
+                    deferred.Add(wc);
             }
-            foreach (var z in validWC7)
+            foreach (var z in deferred)
                 yield return z;
         }
+        private static bool GetIsMatchWC3(PKM pkm, WC3 wc)
+        {
+            // Gen3 Version MUST match.
+            if (wc.Version != 0 && !((GameVersion)wc.Version).Contains((GameVersion)pkm.Version))
+                return false;
+
+            bool hatchedEgg = wc.IsEgg && !pkm.IsEgg;
+            if (!hatchedEgg)
+            {
+                if (wc.SID != -1 && wc.SID != pkm.SID) return false;
+                if (wc.TID != -1 && wc.TID != pkm.TID) return false;
+                if (wc.OT_Name != null && wc.OT_Name != pkm.OT_Name) return false;
+                if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) return false;
+            }
+
+            if (wc.Language != -1 && wc.Language != pkm.Language) return false;
+            if (wc.Ball != pkm.Ball) return false;
+            if (wc.Fateful != pkm.FatefulEncounter)
+            {
+                // XD Gifts only at level 20 get flagged after transfer
+                bool valid = wc.Level == 20 && pkm is XK3;
+                if (!valid)
+                    return false;
+            }
+
+            if (pkm.IsNative)
+            {
+                if (wc.Met_Level != pkm.Met_Level)
+                    return false;
+                if (wc.Met_Location != pkm.Met_Location && (!wc.IsEgg || pkm.IsEgg))
+                    return false;
+            }
+            else
+            {
+                if (pkm.IsEgg)
+                    return false;
+                if (wc.Level > pkm.Met_Level)
+                    return false;
+            }
+            return true;
+        }
+        private static bool GetIsMatchPCD(PKM pkm, PKM wc, IEnumerable<DexLevel> vs)
+        {
+            if (!wc.IsEgg)
+            {
+                if (wc.TID != pkm.TID) return false;
+                if (wc.SID != pkm.SID) return false;
+                if (wc.OT_Name != pkm.OT_Name) return false;
+                if (wc.OT_Gender != pkm.OT_Gender) return false;
+                if (wc.Language != 0 && wc.Language != pkm.Language) return false;
+
+                if (pkm.Format != 4) // transferred
+                {
+                    // met location: deferred to general transfer check
+                    if (wc.CurrentLevel > pkm.Met_Level) return false;
+                }
+                else
+                {
+                    if (wc.Egg_Location + 3000 != pkm.Met_Location) return false;
+                    if (wc.CurrentLevel != pkm.Met_Level) return false;
+                }
+            }
+            else // Egg
+            {
+                if (wc.Egg_Location + 3000 != pkm.Egg_Location && pkm.Egg_Location != 2002) // traded
+                    return false;
+                if (wc.CurrentLevel != pkm.Met_Level)
+                    return false;
+                if (pkm.IsEgg && !pkm.IsNative)
+                    return false;
+            }
+
+            if (wc.AltForm != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species)))
+                return false;
+
+            if (wc.Ball != pkm.Ball) return false;
+            if (wc.OT_Gender < 3 && wc.OT_Gender != pkm.OT_Gender) return false;
+            if (wc.PID == 1 && pkm.IsShiny) return false;
+            if (wc.Gender != 3 && wc.Gender != pkm.Gender) return false;
+
+            if (wc.CNT_Cool > pkm.CNT_Cool) return false;
+            if (wc.CNT_Beauty > pkm.CNT_Beauty) return false;
+            if (wc.CNT_Cute > pkm.CNT_Cute) return false;
+            if (wc.CNT_Smart > pkm.CNT_Smart) return false;
+            if (wc.CNT_Tough > pkm.CNT_Tough) return false;
+            if (wc.CNT_Sheen > pkm.CNT_Sheen) return false;
+
+            return true;
+        }
+        private static bool GetIsMatchPGF(PKM pkm, PGF wc, IEnumerable<DexLevel> vs)
+        {
+            if (!wc.IsEgg)
+            {
+                if (wc.SID != pkm.SID) return false;
+                if (wc.TID != pkm.TID) return false;
+                if (wc.OT != pkm.OT_Name) return false;
+                if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) return false;
+                if (wc.PID != 0 && pkm.PID != wc.PID) return false;
+                if (wc.PIDType == 0 && pkm.IsShiny) return false;
+                if (wc.PIDType == 2 && !pkm.IsShiny) return false;
+                if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) return false;
+                if (wc.Language != 0 && wc.Language != pkm.Language) return false;
+
+                if (wc.EggLocation != pkm.Egg_Location) return false;
+                if (wc.MetLocation != pkm.Met_Location) return false;
+            }
+            else
+            {
+                if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30003) // traded
+                    return false;
+                if (pkm.IsEgg && !pkm.IsNative)
+                    return false;
+            }
+
+            if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) return false;
+
+            if (wc.Level != pkm.Met_Level) return false;
+            if (wc.Ball != pkm.Ball) return false;
+            if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) return false;
+            if (wc.Gender != 2 && wc.Gender != pkm.Gender) return false;
+
+            if (wc.CNT_Cool > pkm.CNT_Cool) return false;
+            if (wc.CNT_Beauty > pkm.CNT_Beauty) return false;
+            if (wc.CNT_Cute > pkm.CNT_Cute) return false;
+            if (wc.CNT_Smart > pkm.CNT_Smart) return false;
+            if (wc.CNT_Tough > pkm.CNT_Tough) return false;
+            if (wc.CNT_Sheen > pkm.CNT_Sheen) return false;
+
+            return true;
+        }
+        private static bool GetIsMatchWC6(PKM pkm, WC6 wc, IEnumerable<DexLevel> vs)
+        {
+            if (pkm.Egg_Location == 0) // Not Egg
+            {
+                if (wc.CardID != pkm.SID) return false;
+                if (wc.TID != pkm.TID) return false;
+                if (wc.OT != pkm.OT_Name) return false;
+                if (wc.OTGender != pkm.OT_Gender) return false;
+                if (wc.PIDType == 0 && pkm.PID != wc.PID) return false;
+                if (wc.PIDType == 2 && !pkm.IsShiny) return false;
+                if (wc.PIDType == 3 && pkm.IsShiny) return false;
+                if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) return false;
+                if (wc.EncryptionConstant != 0 && wc.EncryptionConstant != pkm.EncryptionConstant) return false;
+                if (wc.Language != 0 && wc.Language != pkm.Language) return false;
+            }
+            if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) return false;
+
+            if (wc.IsEgg)
+            {
+                if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30002) // traded
+                    return false;
+                if (pkm.IsEgg && !pkm.IsNative)
+                    return false;
+            }
+            else
+            {
+                if (wc.EggLocation != pkm.Egg_Location) return false;
+                if (wc.MetLocation != pkm.Met_Location) return false;
+            }
+
+            if (wc.Level != pkm.Met_Level) return false;
+            if (wc.Ball != pkm.Ball) return false;
+            if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) return false;
+            if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) return false;
+            if (wc.Gender != 3 && wc.Gender != pkm.Gender) return false;
+
+            if (wc.CNT_Cool > pkm.CNT_Cool) return false;
+            if (wc.CNT_Beauty > pkm.CNT_Beauty) return false;
+            if (wc.CNT_Cute > pkm.CNT_Cute) return false;
+            if (wc.CNT_Smart > pkm.CNT_Smart) return false;
+            if (wc.CNT_Tough > pkm.CNT_Tough) return false;
+            if (wc.CNT_Sheen > pkm.CNT_Sheen) return false;
+
+            return true;
+        }
+        private static bool GetIsMatchWC7(PKM pkm, WC7 wc, IEnumerable<DexLevel> vs)
+        {
+            if (pkm.Egg_Location == 0) // Not Egg
+            {
+                if (wc.OTGender != 3)
+                {
+                    if (wc.SID != pkm.SID) return false;
+                    if (wc.TID != pkm.TID) return false;
+                    if (wc.OTGender != pkm.OT_Gender) return false;
+                }
+                if (!string.IsNullOrEmpty(wc.OT) && wc.OT != pkm.OT_Name) return false;
+                if (wc.OriginGame != 0 && wc.OriginGame != pkm.Version) return false;
+                if (wc.EncryptionConstant != 0 && wc.EncryptionConstant != pkm.EncryptionConstant) return false;
+                if (wc.Language != 0 && wc.Language != pkm.Language) return false;
+            }
+            if (wc.Form != pkm.AltForm && vs.All(dl => !IsFormChangeable(pkm, dl.Species))) return false;
+
+            if (wc.IsEgg)
+            {
+                if (wc.EggLocation != pkm.Egg_Location && pkm.Egg_Location != 30002) // traded
+                    return false;
+                if (pkm.IsEgg && !pkm.IsNative)
+                    return false;
+            }
+            else
+            {
+                if (wc.EggLocation != pkm.Egg_Location) return false;
+                if (wc.MetLocation != pkm.Met_Location) return false;
+            }
+
+            if (wc.MetLevel != pkm.Met_Level) return false;
+            if (wc.Ball != pkm.Ball) return false;
+            if (wc.OTGender < 3 && wc.OTGender != pkm.OT_Gender) return false;
+            if (wc.Nature != 0xFF && wc.Nature != pkm.Nature) return false;
+            if (wc.Gender != 3 && wc.Gender != pkm.Gender) return false;
+
+            if (wc.CNT_Cool > pkm.CNT_Cool) return false;
+            if (wc.CNT_Beauty > pkm.CNT_Beauty) return false;
+            if (wc.CNT_Cute > pkm.CNT_Cute) return false;
+            if (wc.CNT_Smart > pkm.CNT_Smart) return false;
+            if (wc.CNT_Tough > pkm.CNT_Tough) return false;
+            if (wc.CNT_Sheen > pkm.CNT_Sheen) return false;
+
+            if (wc.PIDType == 2 && !pkm.IsShiny) return false;
+            if (wc.PIDType == 3 && pkm.IsShiny) return false;
+
+            return true;
+        }
+
 
         // EncounterEgg
         private static IEnumerable<EncounterEgg> GenerateEggs(PKM pkm)
@@ -1260,7 +1320,11 @@ namespace PKHeX.Core
             if (baseSpecies <= max)
                 yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies };
 
-            if (GetSplitBreedGeneration(pkm).Contains(pkm.Species) && (baseSpecies = GetBaseSpecies(pkm, 1)) <= max)
+            if (!GetSplitBreedGeneration(pkm).Contains(pkm.Species))
+                yield break; // no other possible species
+
+            baseSpecies = GetBaseSpecies(pkm, 1);
+            if (baseSpecies <= max)
                 yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies, SplitBreed = true };
         }
 
@@ -1293,7 +1357,8 @@ namespace PKHeX.Core
                 return false;
 
             IEnumerable<EncounterArea> locs = GetDexNavAreas(pkm);
-            return locs.Select(loc => GetValidEncounterSlots(pkm, loc, DexNav: true)).Any(slots => slots.Any(slot => slot.Permissions.AllowDexNav && slot.Permissions.DexNav));
+            var d_areas = locs.Select(loc => GetValidEncounterSlots(pkm, loc, DexNav: true));
+            return d_areas.Any(slots => slots.Any(slot => slot.Permissions.AllowDexNav && slot.Permissions.DexNav));
         }
         internal static EncounterArea GetCaptureLocation(PKM pkm)
         {
@@ -1315,7 +1380,8 @@ namespace PKHeX.Core
                 case 2:
                     return GetGSStaticTransfer(species, pkm.Met_Level);
                 default:
-                    return GetStaticEncounters(pkm, 100).OrderBy(s => s.Level).FirstOrDefault();
+                    var table = GetEncounterStaticTable(pkm, (GameVersion)pkm.Version);
+                    return GetStatic(pkm, table, lvl: 100, skip: true).FirstOrDefault();
             }
         }
         internal static EncounterStatic GetRBYStaticTransfer(int species, int pkmMetLevel)

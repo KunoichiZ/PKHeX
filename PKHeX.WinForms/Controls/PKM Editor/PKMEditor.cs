@@ -774,7 +774,7 @@ namespace PKHeX.WinForms.Controls
 
             int level = encounter.Level;
             int location = encounter.Location;
-            int minlvl = Legal.GetLowestLevel(pkm, encounter.Species);
+            int minlvl = Legal.GetLowestLevel(pkm, encounter.LevelMin);
             if (minlvl == 0)
                 minlvl = level;
 
@@ -1592,22 +1592,11 @@ namespace PKHeX.WinForms.Controls
             }
             else
             {
-                // IVs determine shininess
-                // All 10IV except for one where (IV & 2 == 2) [gen specific]
-                int[] and2 = { 2, 3, 6, 7, 10, 11, 14, 15 };
-                int randIV = and2[Util.Rand32() % and2.Length];
-                if (pkm.Format == 1)
-                {
-                    TB_ATKIV.Text = "10"; // an attempt was made
-                    TB_DEFIV.Text = randIV.ToString();
-                }
-                else // pkm.Format == 2
-                {
-                    TB_ATKIV.Text = randIV.ToString();
-                    TB_DEFIV.Text = "10";
-                }
-                TB_SPEIV.Text = "10";
-                TB_SPAIV.Text = "10";
+                pkm.SetShinyIVs();
+                TB_ATKIV.Text = pkm.IV_ATK.ToString();
+                TB_DEFIV.Text = pkm.IV_DEF.ToString();
+                TB_SPEIV.Text = pkm.IV_SPE.ToString();
+                TB_SPAIV.Text = pkm.IV_SPA.ToString();
                 UpdateIVs(null, null);
             }
 
@@ -1995,20 +1984,36 @@ namespace PKHeX.WinForms.Controls
             string[] formStrings = PKX.GetFormList(Set.Species,
                 Util.GetTypesList("en"),
                 Util.GetFormsList("en"), gendersymbols, pkm.Format);
-            int form = 0;
-            for (int i = 0; i < formStrings.Length; i++)
-                if (formStrings[i].Contains(Set.Form ?? ""))
-                { form = i; break; }
-            CB_Form.SelectedIndex = Math.Min(CB_Form.Items.Count - 1, form);
+            int form = Array.FindIndex(formStrings, z => z.Contains(Set.Form ?? ""));
+            CB_Form.SelectedIndex = Math.Min(CB_Form.Items.Count - 1, Math.Max(0, form));
 
             // Set Ability and Moves
             CB_Ability.SelectedIndex = Math.Max(0, Array.IndexOf(pkm.PersonalInfo.Abilities, Set.Ability));
             ComboBox[] m = { CB_Move1, CB_Move2, CB_Move3, CB_Move4 };
-            for (int i = 0; i < 4; i++) m[i].SelectedValue = Set.Moves[i];
+            ComboBox[] p = { CB_PPu1, CB_PPu2, CB_PPu3, CB_PPu4 };
+            for (int i = 0; i < 4; i++)
+            {
+                m[i].SelectedValue = Set.Moves[i];
+                p[i].SelectedIndex = Set.Moves[i] != 0 ? 3 : 0; // max PP
+            }
 
             // Set Item and Nature
             CB_HeldItem.SelectedValue = Set.HeldItem < 0 ? 0 : Set.HeldItem;
             CB_Nature.SelectedValue = Set.Nature < 0 ? 0 : Set.Nature;
+
+            // Set Level and Friendship
+            TB_Level.Text = Set.Level.ToString();
+            TB_Friendship.Text = Set.Friendship.ToString();
+
+            if (pkm.Format >= 7 && pkm.CurrentLevel == 100) // hyper train IVs as appropriate
+            {
+                pkm.HT_HP = Set.IVs[0] != 31;
+                pkm.HT_ATK = Set.IVs[1] != 31 && Set.IVs[1] > 2;
+                pkm.HT_DEF = Set.IVs[2] != 31;
+                pkm.HT_SPA = Set.IVs[4] != 31;
+                pkm.HT_SPD = Set.IVs[5] != 31;
+                pkm.HT_SPE = Set.IVs[3] != 31 & Set.IVs[3] > 2;
+            }
 
             // Set IVs
             TB_HPIV.Text = Set.IVs[0].ToString();
@@ -2026,16 +2031,9 @@ namespace PKHeX.WinForms.Controls
             TB_SPDEV.Text = Set.EVs[5].ToString();
             TB_SPEEV.Text = Set.EVs[3].ToString();
 
-            // Set Level and Friendship
-            TB_Level.Text = Set.Level.ToString();
-            TB_Friendship.Text = Set.Friendship.ToString();
-
             // Reset IV/EVs
             UpdateRandomPID(null, null);
             UpdateRandomEC(null, null);
-            ComboBox[] p = { CB_PPu1, CB_PPu2, CB_PPu3, CB_PPu4 };
-            for (int i = 0; i < 4; i++)
-                p[i].SelectedIndex = m[i].SelectedIndex != 0 ? 3 : 0; // max PP
 
             if (Set.Shiny) UpdateShiny(true);
             pkm = PreparePKM();

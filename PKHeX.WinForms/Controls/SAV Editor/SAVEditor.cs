@@ -859,6 +859,7 @@ namespace PKHeX.WinForms.Controls
 
             SAV.LoadBoxes(path, out result, Box.CurrentBox, clearAll, noSetb);
             SetPKMBoxes();
+            UpdateBoxViewers();
             return true;
         }
 
@@ -988,6 +989,7 @@ namespace PKHeX.WinForms.Controls
 
                 B_OpenHoneyTreeEditor.Enabled = sav.DP || sav.Pt;
                 B_OpenRTCEditor.Enabled = sav.RS || sav.E;
+                B_OpenUGSEditor.Enabled = sav.DP || sav.Pt;
             }
             GB_SAVtools.Visible = sav.Exportable && FLP_SAVtools.Controls.Cast<Control>().Any(c => c.Enabled);
             foreach (Control c in FLP_SAVtools.Controls.Cast<Control>())
@@ -1096,6 +1098,16 @@ namespace PKHeX.WinForms.Controls
             }
             catch { }
             WinFormsUtil.Alert("Showdown Team (Battle Box) set to Clipboard.");
+        }
+
+        private void B_OpenUGSEditor_Click(object sender, EventArgs e)
+        {
+            switch (SAV.Version)
+            {
+                case GameVersion.DP:
+                case GameVersion.Pt:
+                    new SAV_Underground(SAV).ShowDialog(); break;
+            }
         }
     }
 }

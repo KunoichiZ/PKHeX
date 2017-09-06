@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define LOADALL
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -44,18 +45,8 @@ namespace PKHeX.WinForms
             };
 
             // Enable Scrolling when hovered over
-            PAN_Box.MouseWheel += (sender, e) =>
-            {
-                if (ActiveForm == this)
-                    SCR_Box.Focus();
-            };
             foreach (var slot in PKXBOXES)
             {
-                slot.MouseWheel += (sender, e) =>
-                {
-                    if (ActiveForm == this)
-                        SCR_Box.Focus();
-                };
                 // Enable Click
                 slot.MouseClick += (sender, e) =>
                 {
@@ -91,43 +82,9 @@ namespace PKHeX.WinForms
                 p.ContextMenuStrip = mnu;
 
             // Load Data
-            var dbTemp = new ConcurrentBag<PKM>();
-            var files = Directory.GetFiles(DatabasePath, "*", SearchOption.AllDirectories);
-            Parallel.ForEach(files, file =>
-            {
-                FileInfo fi = new FileInfo(file);
-                if (!fi.Extension.Contains(".pk") || !PKX.IsPKM(fi.Length)) return;
-                var pk = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(file), file, prefer: (fi.Extension.Last() - 0x30)&7);
-                if (pk != null)
-                    dbTemp.Add(pk);
-            });
-
-#if DEBUG
-            if (SaveUtil.GetSavesFromFolder(Main.BackupPath, false, out IEnumerable<string> result))
-            {
-                Parallel.ForEach(result, file =>
-                {
-                    var sav = SaveUtil.GetVariantSAV(File.ReadAllBytes(file));
-                    var path = EXTERNAL_SAV + new FileInfo(file).Name;
-                    if (sav.HasBox)
-                        foreach (var pk in sav.BoxData)
-                            addPKM(pk);
-
-                    void addPKM(PKM pk)
-                    {
-                        pk.Identifier = Path.Combine(path, pk.Identifier);
-                        dbTemp.Add(pk);
-                    }
-                });
-            }
-#endif
-
-            // Prepare Database
-            RawDB = new List<PKM>(dbTemp.OrderBy(pk => pk.Identifier)
-                                        .Concat(SAV.BoxData.Where(pk => pk.Species != 0)) // Fetch from save file
-                                        .Where(pk => pk.ChecksumValid && pk.Species != 0 && pk.Sanity == 0)
-                                        .Distinct());
-            SetResults(RawDB);
+            B_Search.Enabled = false;
+            L_Count.Text = "Loading...";
+            new Task(LoadDatabase).Start();
 
             Menu_SearchSettings.DropDown.Closing += (sender, e) =>
             {
@@ -201,7 +158,7 @@ namespace PKHeX.WinForms
             var pk = Results[index];
             string path = pk.Identifier;
 
-#if DEBUG
+#if LOADALL
             if (path.StartsWith(EXTERNAL_SAV))
             {
                 WinFormsUtil.Alert("Can't delete from a backup save.");
@@ -369,6 +326,48 @@ namespace PKHeX.WinForms
             reportGrid.PopulateData(Results.ToArray());
         }
 
+        private void LoadDatabase()
+        {
+            var dbTemp = new ConcurrentBag<PKM>();
+            var files = Directory.GetFiles(DatabasePath, "*", SearchOption.AllDirectories);
+            Parallel.ForEach(files, file =>
+            {
+                FileInfo fi = new FileInfo(file);
+                if (!fi.Extension.Contains(".pk") || !PKX.IsPKM(fi.Length)) return;
+                var pk = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(file), file, prefer: (fi.Extension.Last() - 0x30) & 7);
+                if (pk != null)
+                    dbTemp.Add(pk);
+            });
+
+#if LOADALL
+            if (SaveUtil.GetSavesFromFolder(Main.BackupPath, false, out IEnumerable<string> result))
+            {
+                Parallel.ForEach(result, file =>
+                {
+                    var sav = SaveUtil.GetVariantSAV(File.ReadAllBytes(file));
+                    var path = EXTERNAL_SAV + new FileInfo(file).Name;
+                    if (sav.HasBox)
+                        foreach (var pk in sav.BoxData)
+                            addPKM(pk);
+
+                    void addPKM(PKM pk)
+                    {
+                        pk.Identifier = Path.Combine(path, pk.Identifier);
+                        dbTemp.Add(pk);
+                    }
+                });
+            }
+#endif
+
+            // Prepare Database
+            RawDB = new List<PKM>(dbTemp.OrderBy(pk => pk.Identifier)
+                .Concat(SAV.BoxData.Where(pk => pk.Species != 0)) // Fetch from save file
+                .Where(pk => pk.ChecksumValid && pk.Species != 0 && pk.Sanity == 0)
+                .Distinct());
+
+            BeginInvoke(new MethodInvoker(() => SetResults(RawDB)));
+        }
+
         // IO Usage
         private void OpenDB(object sender, EventArgs e)
         {
@@ -407,7 +406,7 @@ namespace PKHeX.WinForms
             if (!Menu_SearchDatabase.Checked)
             {
                 res = res.Where(pk => !pk.Identifier.StartsWith(DatabasePath + Path.DirectorySeparatorChar, StringComparison.Ordinal));
-#if DEBUG
+#if LOADALL
                 res = res.Where(pk => !pk.Identifier.StartsWith(EXTERNAL_SAV, StringComparison.Ordinal));
 #endif
             }
@@ -471,65 +470,12 @@ namespace PKHeX.WinForms
                 res = res.Where(pk => pk.PSV == Convert.ToInt16(MT_ESV.Text));
 
             // Tertiary Searchables
-            if (TB_Level.Text != "") // Level
-            {
-                int level = Convert.ToInt16(TB_Level.Text);
-                if (level <= 100)
-                switch (CB_Level.SelectedIndex)
-                {
-                    case 0: break; // Any 
-                    case 1: // <=
-                        res = res.Where(pk => pk.Stat_Level <= level);
-                        break;
-                    case 2: // == 
-                        res = res.Where(pk => pk.Stat_Level == level);
-                        break;
-                    case 3: // >=
-                        res = res.Where(pk => pk.Stat_Level >= level);
-                        break;
-                }
-            }
-            switch (CB_IV.SelectedIndex)
-            {
-                case 0: break; // Do nothing
-                case 1: // <= 90
-                    res = res.Where(pk => pk.IVs.Sum() <= 90);
-                    break;
-                case 2: // 91-120
-                    res = res.Where(pk => pk.IVs.Sum() > 90 && pk.IVs.Sum() <= 120);
-                    break;
-                case 3: // 121-150
-                    res = res.Where(pk => pk.IVs.Sum() > 120 && pk.IVs.Sum() <= 150);
-                    break;
-                case 4: // 151-179
-                    res = res.Where(pk => pk.IVs.Sum() > 150 && pk.IVs.Sum() < 180);
-                    break;
-                case 5: // 180+
-                    res = res.Where(pk => pk.IVs.Sum() >= 180);
-                    break;
-                case 6: // == 186
-                    res = res.Where(pk => pk.IVs.Sum() == 186);
-                    break;
-            }
-            switch (CB_EVTrain.SelectedIndex)
-            {
-                case 0: break; // Do nothing
-                case 1: // None (0)
-                    res = res.Where(pk => pk.EVs.Sum() == 0);
-                    break;
-                case 2: // Some (127-0)
-                    res = res.Where(pk => pk.EVs.Sum() < 128);
-                    break;
-                case 3: // Half (128-507)
-                    res = res.Where(pk => pk.EVs.Sum() >= 128 && pk.EVs.Sum() < 508);
-                    break;
-                case 4: // Full (508+)
-                    res = res.Where(pk => pk.EVs.Sum() >= 508);
-                    break;
-            }
+            res = FilterByLVL(res, CB_Level.SelectedIndex, TB_Level.Text);
+            res = FilterByIVs(res, CB_IV.SelectedIndex);
+            res = FilterByEVs(res, CB_EVTrain.SelectedIndex);
 
             slotSelected = -1; // reset the slot last viewed
-            
+
             if (Menu_SearchLegal.Checked && !Menu_SearchIllegal.Checked)
                 res = res.Where(pk => new LegalityAnalysis(pk).ParsedValid);
             if (!Menu_SearchLegal.Checked && Menu_SearchIllegal.Checked)
@@ -547,7 +493,7 @@ namespace PKHeX.WinForms
                             return pkm.Identifier.Contains(cmd.PropertyValue);
                         if (!pkm.GetType().HasPropertyAll(cmd.PropertyName))
                             return false;
-                        try { if (ReflectUtil.IsValueEqual(pkm, cmd.PropertyName, cmd.PropertyValue) == cmd.Evaluator) continue; }
+                        try { if (pkm.GetType().IsValueEqual(pkm, cmd.PropertyName, cmd.PropertyValue) == cmd.Evaluator) continue; }
                         catch { Debug.WriteLine($"Unable to compare {cmd.PropertyName} to {cmd.PropertyValue}."); }
                         return false;
                     }
@@ -560,6 +506,64 @@ namespace PKHeX.WinForms
 
             return res;
         }
+        private static IEnumerable<PKM> FilterByLVL(IEnumerable<PKM> res, int option, string lvl)
+        {
+            if (string.IsNullOrWhiteSpace(lvl))
+                return res;
+            if (!int.TryParse(lvl, out int level))
+                return res;
+            if (level > 100)
+                return res;
+
+            switch (option)
+            {
+                case 0: break; // Any (Do nothing)
+                case 1: // <=
+                    return res.Where(pk => pk.Stat_Level <= level);
+                case 2: // == 
+                    return res.Where(pk => pk.Stat_Level == level);
+                case 3: // >=
+                    return res.Where(pk => pk.Stat_Level >= level);
+            }
+            return res;
+        }
+        private static IEnumerable<PKM> FilterByEVs(IEnumerable<PKM> res, int option)
+        {
+            switch (option)
+            {
+                case 0: break; // Any (Do nothing)
+                case 1: // None (0)
+                    return res.Where(pk => pk.EVs.Sum() == 0);
+                case 2: // Some (127-0)
+                    return res.Where(pk => pk.EVs.Sum() < 128);
+                case 3: // Half (128-507)
+                    return res.Where(pk => pk.EVs.Sum() >= 128 && pk.EVs.Sum() < 508);
+                case 4: // Full (508+)
+                    return res.Where(pk => pk.EVs.Sum() >= 508);
+            }
+            return res;
+        }
+        private static IEnumerable<PKM> FilterByIVs(IEnumerable<PKM> res, int option)
+        {
+            switch (option)
+            {
+                case 0: break; // Do nothing
+                case 1: // <= 90
+                    return res.Where(pk => pk.IVs.Sum() <= 90);
+                case 2: // 91-120
+                    return res.Where(pk => pk.IVs.Sum() > 90 && pk.IVs.Sum() <= 120);
+                case 3: // 121-150
+                    return res.Where(pk => pk.IVs.Sum() > 120 && pk.IVs.Sum() <= 150);
+                case 4: // 151-179
+                    return res.Where(pk => pk.IVs.Sum() > 150 && pk.IVs.Sum() < 180);
+                case 5: // 180+
+                    return res.Where(pk => pk.IVs.Sum() >= 180);
+                case 6: // == 186
+                    return res.Where(pk => pk.IVs.Sum() == 186);
+            }
+            return res;
+        }
+
         private async void B_Search_Click(object sender, EventArgs e)
         {
             B_Search.Enabled = false;
@@ -592,6 +596,7 @@ namespace PKHeX.WinForms
             FillPKXBoxes(0);
 
             L_Count.Text = string.Format(Counter, Results.Count);
+            B_Search.Enabled = true;
         }
         private void FillPKXBoxes(int start)
         {

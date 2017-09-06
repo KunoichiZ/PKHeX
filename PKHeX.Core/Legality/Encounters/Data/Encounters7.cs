@@ -5,13 +5,15 @@ namespace PKHeX.Core
 {
     internal static class Encounters7
     {
-        internal static readonly EncounterArea[] SlotsSN, SlotsMN;
-        internal static readonly EncounterStatic[] StaticSN, StaticMN;
+        internal static readonly EncounterArea[] SlotsSN, SlotsMN, SlotsUS, SlotsUM;
+        internal static readonly EncounterStatic[] StaticSN, StaticMN, StaticUS, StaticUM;
 
         static Encounters7()
         {
             StaticSN = GetStaticEncounters(Encounter_SM, GameVersion.SN);
             StaticMN = GetStaticEncounters(Encounter_SM, GameVersion.MN);
+            StaticUS = GetStaticEncounters(Encounter_USUM, GameVersion.US);
+            StaticUM = GetStaticEncounters(Encounter_USUM, GameVersion.UM);
 
             var REG_SN = GetEncounterTables(GameVersion.SN);
             var REG_MN = GetEncounterTables(GameVersion.MN);
@@ -23,6 +25,13 @@ namespace PKHeX.Core
             MarkG7SMSlots(ref SOS_MN);
             SlotsSN = AddExtraTableSlots(REG_SN, SOS_SN, Encounter_Pelago_SM, Encounter_Pelago_SN);
             SlotsMN = AddExtraTableSlots(REG_MN, SOS_MN, Encounter_Pelago_SM, Encounter_Pelago_MN);
+
+            var REG_US = GetEncounterTables(GameVersion.US);
+            var REG_UM = GetEncounterTables(GameVersion.UM);
+            MarkG7REGSlots(ref REG_US);
+            MarkG7REGSlots(ref REG_UM);
+            SlotsUS = AddExtraTableSlots(REG_US);
+            SlotsUM = AddExtraTableSlots(REG_UM);
         }
         private static void MarkG7REGSlots(ref EncounterArea[] Areas)
         {
@@ -35,7 +44,7 @@ namespace PKHeX.Core
             ReduceAreasSize(ref Areas);
         }
 
-        internal static readonly EncounterStatic[] Encounter_SM = // @ a\1\5\5
+        private static readonly EncounterStatic[] Encounter_SM = // @ a\1\5\5
         {
             // Gifts - 0.bin
             new EncounterStatic { Gift = true, Species = 722, Level = 5,  Location = 24, }, // Rowlet
@@ -150,8 +159,16 @@ namespace PKHeX.Core
             new EncounterTrade { Species = 762, Form = 0, Level = 43, Ability = 1, TID = 20679, SID = 00009, IVs = new[] {-1,-1,-1,-1,-1,31}, OTGender = 1, Gender = 1, Nature = Nature.Careful, }, // Steenee
             new EncounterTrade { Species = 663, Form = 0, Level = 59, Ability = 4, TID = 56734, SID = 00008, IVs = new[] {-1,-1,-1,31,-1,-1}, OTGender = 0, Gender = 0, Nature = Nature.Jolly, }, // Talonflame
         };
+        private static readonly EncounterStatic[] Encounter_USUM =
+        {
 
-        internal static readonly EncounterArea[] Encounter_Pelago_SM =
+        };
+        internal static readonly EncounterTrade[] TradeGift_USUM =
+        {
+
+        };
+
+        private static readonly EncounterArea[] Encounter_Pelago_SM =
         {
             new EncounterArea
             {
@@ -189,7 +206,7 @@ namespace PKHeX.Core
                 },
             }
         };
-        internal static readonly EncounterArea[] Encounter_Pelago_SN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot { Species = 627, LevelMin = 1, LevelMax = 55 }, /* Rufflet SUN  */ } } };
-        internal static readonly EncounterArea[] Encounter_Pelago_MN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot { Species = 629, LevelMin = 1, LevelMax = 55 }, /* Vullaby MOON */ } } };
+        private static readonly EncounterArea[] Encounter_Pelago_SN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot { Species = 627, LevelMin = 1, LevelMax = 55 }, /* Rufflet SUN  */ } } };
+        private static readonly EncounterArea[] Encounter_Pelago_MN = { new EncounterArea { Location = 30016, Slots = new[] { new EncounterSlot { Species = 629, LevelMin = 1, LevelMax = 55 }, /* Vullaby MOON */ } } };
     }
 }

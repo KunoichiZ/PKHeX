@@ -39,6 +39,8 @@ namespace PKHeX.Core
         public static bool AllowGen2Crystal => AllowGBCartEra || AllowGen2VCCrystal;
         public static bool AllowGen2MoveReminder => AllowGBCartEra;
 
+        public static bool CheckWordFilter { get; set; } = true;
+
         /// <summary> e-Reader Berry originates from a Japanese SaveFile </summary>
         public static bool SavegameJapanese { get; set; }
         /// <summary> e-Reader Berry is Enigma or special berry </summary>
@@ -92,6 +94,8 @@ namespace PKHeX.Core
         // Gen 7
         private static readonly EggMoves[] EggMovesSM = EggMoves7.GetArray(Data.UnpackMini(Util.GetBinaryResource("eggmove_sm.pkl"), "sm"));
         private static readonly Learnset[] LevelUpSM = Learnset7.GetArray(Data.UnpackMini(Util.GetBinaryResource("lvlmove_sm.pkl"), "sm"));
+        private static readonly EggMoves[] EggMovesUSUM = EggMoves7.GetArray(Data.UnpackMini(Util.GetBinaryResource("eggmove_uu.pkl"), "uu"));
+        private static readonly Learnset[] LevelUpUSUM = Learnset7.GetArray(Data.UnpackMini(Util.GetBinaryResource("lvlmove_uu.pkl"), "uu"));
 
         // Setup Help
         private static HashSet<MysteryGift> GetPCDDB(byte[] bin)
@@ -193,12 +197,12 @@ namespace PKHeX.Core
                         if (index == 0)
                             return r;
 
-                        var pi_rb = (PersonalInfoG1)PersonalTable.RB[index];
-                        var pi_y = (PersonalInfoG1)PersonalTable.Y[index];
+                        var pi_rb = ((PersonalInfoG1)PersonalTable.RB[index]).Moves;
+                        var pi_y = ((PersonalInfoG1)PersonalTable.Y[index]).Moves;
 
                         for (int m = 0; m < moves.Count; m++)
                         {
-                            if (pi_rb.Moves.Contains(moves[m]) || pi_y.Moves.Contains(moves[m]))
+                            if (pi_rb.Contains(moves[m]) || pi_y.Contains(moves[m]))
                                 r[m] = 1;
                             else
                             {
@@ -226,15 +230,13 @@ namespace PKHeX.Core
                         if (index == 0)
                             return r;
 
-                        var pi_rb = (PersonalInfoG1)PersonalTable.RB[index];
-                        var pi_y = (PersonalInfoG1)PersonalTable.Y[index];
+                        var pi_rb = ((PersonalInfoG1)PersonalTable.RB[index]).Moves;
+                        var pi_y = ((PersonalInfoG1)PersonalTable.Y[index]).Moves;
 
                         for (int m = 0; m < moves.Count; m++)
                         {
-                            if (pi_rb.Moves.Contains(moves[m]) && pi_y.Moves.Contains(moves[m]))
-                                r[m] = 1;
-                            else
-                                r[m] = Math.Max(LevelUpRB[index].GetLevelLearnMove(moves[m]), LevelUpY[index].GetLevelLearnMove(moves[m]));
+                            bool start = pi_rb.Contains(moves[m]) && pi_y.Contains(moves[m]);
+                            r[m] = start ? 1 : Math.Max(LevelUpRB[index].GetLevelLearnMove(moves[m]), LevelUpY[index].GetLevelLearnMove(moves[m]));
                         }
                         break;
                     }
@@ -370,8 +372,20 @@ namespace PKHeX.Core
                             {
                                 int index = PersonalTable.SM.GetFormeIndex(species, form);
                                 r.AddRange(LevelUpSM[index].GetMoves(lvl));
+                                if (ver == GameVersion.Any) // Fall Through
+                                    goto case GameVersion.USUM;
                                 break;
                             }
+                        case GameVersion.US:
+                        case GameVersion.UM:
+                        case GameVersion.USUM:
+                        {
+                            int index = PersonalTable.USUM.GetFormeIndex(species, form);
+                            if (index == 0)
+                                return r;
+                            r.AddRange(LevelUpUSUM[index].GetMoves(lvl));
+                            break;
+                        }
                     }
                     break;
                 default:
@@ -458,18 +472,14 @@ namespace PKHeX.Core
             switch (gameSource)
             {
                 case GameVersion.GS:
+                    // If checking back-transfer specimen (GSC->RBY), remove moves that must be deleted prior to transfer
+                    int[] getRBYCompatibleMoves(int[] moves) => pkm.Format == 1 ? moves.Where(m => m <= MaxMoveID_1).ToArray() : moves;
                     if (pkm.InhabitedGeneration(2))
-                        if (pkm.Format == 1)
-                            return LevelUpGS[species].GetMoves(lvl).Where(m => m <= MaxMoveID_1).ToArray();
-                        else
-                            return LevelUpGS[species].GetMoves(lvl);
+                        return getRBYCompatibleMoves(LevelUpGS[species].GetMoves(lvl));
                     break;
                 case GameVersion.C:
                     if (pkm.InhabitedGeneration(2))
-                        if (pkm.Format == 1)
-                            return LevelUpC[species].GetMoves(lvl).Where(m => m <= MaxMoveID_1).ToArray();
-                        else
-                            return LevelUpC[species].GetMoves(lvl);
+                        return getRBYCompatibleMoves(LevelUpC[species].GetMoves(lvl));
                     break;
 
                 case GameVersion.R:
@@ -538,9 +548,21 @@ namespace PKHeX.Core
                 case GameVersion.SN:
                 case GameVersion.MN:
                 case GameVersion.SM:
-                    int index = PersonalTable.SM.GetFormeIndex(species, pkm.AltForm);
                     if (pkm.InhabitedGeneration(7))
+                    {
+                        int index = PersonalTable.SM.GetFormeIndex(species, pkm.AltForm);
                         return LevelUpSM[index].GetMoves(lvl);
+                    }
+                    break;
+
+                case GameVersion.US:
+                case GameVersion.UM:
+                case GameVersion.USUM:
+                    if (pkm.InhabitedGeneration(7))
+                    {
+                        int index = PersonalTable.USUM.GetFormeIndex(species, pkm.AltForm);
+                        return LevelUpUSUM[index].GetMoves(lvl);
+                    }
                     break;
             }
             return new int[0];
@@ -578,34 +600,36 @@ namespace PKHeX.Core
             {
                 var evo = evoChain[i];
                 var moves = GetMoves(pkm, evo.Species, 1, 1, evo.Level, pkm.AltForm, moveTutor: true, Version: Version, LVL: true, specialTutors: true, Machine: true, MoveReminder: true, RemoveTransferHM: false, Generation: Generation);
-                if (i >= index)
-                    // Moves from Species or any species bellow in the evolution phase
-                    preevomoves.AddRange(moves);
-                else
-                    // Moves in phase evolutions after the limit species, this moves should be removed
-                    evomoves.AddRange(moves);
+                var list = i >= index ? preevomoves : evomoves;
+                list.AddRange(moves);
             }
-            preevomoves.RemoveAll(x => evomoves.Contains(x));
-            return preevomoves.Distinct().ToList();
+            return preevomoves.Where(z => !evomoves.Contains(z)).Distinct().ToList();
         }
 
         // Encounter
-        internal static GameVersion[] GetGen2Versions(LegalInfo Info)
+        internal static IEnumerable<GameVersion> GetGen2Versions(LegalInfo Info)
         {
             if (AllowGen2Crystal && Info.Game == GameVersion.C)
-                return new[] { GameVersion.C };
-            // Any encounter marked with version GSC is for pokemon with the same moves in g/s and Crystal, it is enought to check only g/s moves
-            return new[] { GameVersion.GS };
+                yield return GameVersion.C;
+
+            // Any encounter marked with version GSC is for pokemon with the same moves in GS and C
+            // it is sufficient to check just GS's case
+            yield return GameVersion.GS;
         }
-        internal static GameVersion[] GetGen1Versions(LegalInfo Info)
+        internal static IEnumerable<GameVersion> GetGen1Versions(LegalInfo Info)
         {
             if (Info.EncounterMatch.Species == 133 && Info.Game == GameVersion.Stadium)
-                // Staidum eevee, check for red/blue and yellow initial moves
-                return new[] { GameVersion.RB, GameVersion.YW };
-            if (Info.Game == GameVersion.YW)
-                return new[] { GameVersion.YW };
-            // Any encounter marked with version RBY is for pokemon with the same moves and catch rate in red/blue and yellow, it is enought to check only red/blue moves
-            return new[] { GameVersion.RB };
+            { 
+                // Stadium Eevee; check for RB and yellow initial moves
+                yield return GameVersion.RB;
+                yield return GameVersion.YW;
+            }
+            else if (Info.Game == GameVersion.YW)
+                yield return GameVersion.YW;
+
+            // Any encounter marked with version RBY is for pokemon with the same moves and catch rate in RB and Y, 
+            // it is sufficient to check just RB's case
+            yield return GameVersion.RB;
         }
         internal static IEnumerable<int> GetInitialMovesGBEncounter(int species, int lvl, GameVersion ver)
         {
@@ -665,8 +689,8 @@ namespace PKHeX.Core
         }
         internal static int GetRequiredMoveCount(PKM pk, int[] moves, LegalInfo info, int[] initialmoves)
         {
-            if (pk.Format != 1 || !pk.Gen1_NotTradeback) // No MoveDeleter
-                return 1; // Move deleter exits, slots from 2 onwards can allways be empty
+            if (pk.Format != 1 || !pk.Gen1_NotTradeback) // No Move Deleter in Gen 1
+                return 1; // Move Deleter exits, slots from 2 onwards can allways be empty
 
             int required = GetRequiredMoveCount(pk, moves, info.EncounterMoves.LevelUpMoves, initialmoves);
             if (required >= 4)
@@ -677,7 +701,8 @@ namespace PKHeX.Core
             var learn = info.EncounterMoves.LevelUpMoves;
             var tmhm = info.EncounterMoves.TMHMMoves;
             var tutor = info.EncounterMoves.TutorMoves;
-            required += moves.Where(m => m != 0 && initialmoves.Union(learn[1]).All(l => l != m) && (tmhm[1].Any(t => t == m) || tutor[1].Any(t => t == m))).Count();
+            var union = initialmoves.Union(learn[1]);
+            required += moves.Count(m => m != 0 && union.All(t => t != m) && (tmhm[1].Any(t => t == m) || tutor[1].Any(t => t == m)));
 
             return Math.Min(4, required);
         }
@@ -734,48 +759,42 @@ namespace PKHeX.Core
         }
         private static int GetRequiredMoveCountDecrement(PKM pk, int[] moves, List<int>[] learn, int[] initialmoves)
         {
-            int catch_rate = (pk as PK1).Catch_Rate;
             int usedslots = initialmoves.Union(learn[1]).Where(m => m != 0).Distinct().Count();
-            // Yellow optional moves, reduce usedslots if the yellow move is not present
-            // The count wont go bellow 1 because the yellow moves were already counted and are not the only initial or level up moves
-            if (pk.Species == 031) //Venonat
+            switch (pk.Species)
             {
-                // ignore Venomoth, by the time Venonat evolved it will always have 4 moves
-                if (pk.CurrentLevel >= 11 && !moves.Contains(48)) // Supersonic
+                case 031: // Venonat; ignore Venomoth (by the time Venonat evolves it will always have 4 moves)
+                    if (pk.CurrentLevel >= 11 && !moves.Contains(48)) // Supersonic
+                        usedslots--;
+                    if (pk.CurrentLevel >= 19 && !moves.Contains(93)) // Confusion
+                        usedslots--;
+                    break;
+                case 064: case 065: // Abra & Kadabra
+                    int catch_rate = ((PK1) pk).Catch_Rate;
+                    if (catch_rate != 100)// Initial Yellow Kadabra Kinesis (move 134)
+                        usedslots--;
+                    if (catch_rate == 200 && pk.CurrentLevel < 20) // Kadabra Disable, not learned until 20 if captured as Abra (move 50)
+                        usedslots--;
+                    break;
+                case 104: case 105: // Cubone & Marowak
+                    if (!moves.Contains(39)) // Initial Yellow Tail Whip 
+                        usedslots--;
+                    if (!moves.Contains(125)) // Initial Yellow Bone Club
+                        usedslots--;
+                    if (pk.Species == 105 && pk.CurrentLevel < 33 && !moves.Contains(116)) // Marowak evolved without Focus Energy
+                        usedslots--;
+                    break;
+                case 113:
+                    if (!moves.Contains(39)) // Yellow Initial Tail Whip 
+                        usedslots--;
+                    if (!moves.Contains(3)) // Yellow Lvl 12 and Initial Red/Blue Double Slap
+                        usedslots--;
+                    break;
+                case 056 when pk.CurrentLevel >= 9 && !moves.Contains(67): // Mankey (Low Kick)
+                case 127 when pk.CurrentLevel >= 21 && !moves.Contains(20): // Pinsir (Bind)
+                case 130 when pk.CurrentLevel < 32: // Gyarados
                     usedslots--;
-                if (pk.CurrentLevel >= 19 && !moves.Contains(93)) // Confusion
-                    usedslots--;
+                    break;
             }
-            if (pk.Species == 056 && pk.CurrentLevel >= 9 && !moves.Contains(67)) // Mankey Yellow Low Kick, Primeape will always have 4 moves
-                usedslots--;
-
-            if (064 == pk.Species || pk.Species == 065)
-            {
-                if (catch_rate != 100)// Initial Yellow Kadabra Kinesis (move 134)
-                    usedslots--;
-                if (catch_rate == 200 && pk.CurrentLevel < 20) // Kadabra Disable, not learned until 20 if captured as Abra (move 50)
-                    usedslots--;
-            }
-            if (104 == pk.Species || pk.Species == 105) // Cubone and Marowak
-            {
-                if (!moves.Contains(39)) // Initial Yellow Tail Whip 
-                    usedslots--;
-                if (!moves.Contains(125)) // Initial Yellow Bone Club
-                    usedslots--;
-                if (pk.Species == 105 && pk.CurrentLevel < 33 && !moves.Contains(116)) // Marowak evolved without Focus Energy
-                    usedslots--;
-            }
-            if (pk.Species == 113) // Chansey 
-            {
-                if (!moves.Contains(39)) // Yellow Initial Tail Whip 
-                    usedslots--;
-                if (!moves.Contains(3)) // Yellow Lvl 12 and Initial Red/Blue Double Slap
-                    usedslots--;
-            }
-            if (pk.Species == 130 && pk.CurrentLevel < 32) // Wild Gyarados from yellow do not learn splash, evolved gyarados do not learn tackle 
-                usedslots--;
-            if (pk.Species == 127 && pk.CurrentLevel >= 21 && !moves.Contains(20)) // Pinsir Yellow Bind
-                usedslots--;
             return usedslots;
         }
         private static int GetRequiredMoveCountSpecial(PKM pk, int[] moves, List<int>[] learn)
@@ -783,33 +802,47 @@ namespace PKHeX.Core
             // Species with few mandatory slots, species with stone evolutions that could evolve at lower level and do not learn any more moves
             // and Pikachu and Nidoran family, those only have mandatory the initial moves and a few have one level up moves, 
             // every other move could be avoided switching game or evolving
-            var basespecies = GetBaseSpecies(pk);
-            var maxlevel = 1;
-            var minlevel = 1;
-            if (029 <= pk.Species && pk.Species <= 034 && pk.CurrentLevel >= 8)
-                maxlevel = 8; // Always lean a third move at level 8
-            if (pk.Species == 114)
+            var mandatory = GetRequiredMoveCountLevel(pk);
+            switch (pk.Species)
             {
-                //Tangela moves before level 32 are different in red/blue and yellow
+                case 103 when pk.CurrentLevel >= 28: // Exeggutor
+                    // At level 28 learn different move if is a Exeggute or Exeggutor
+                    if (moves.Contains(73))
+                        mandatory.Add(73); // Leech Seed level 28 Exeggute
+                    if (moves.Contains(23))
+                        mandatory.Add(23); // Stomp level 28 Exeggutor
+                    break;
+                case 25 when pk.CurrentLevel >= 33:
+                    mandatory.Add(97); // Pikachu always learns Agility
+                    break;
+                case 114:
+                    mandatory.Add(132); // Tangela always has Constrict as Initial Move
+                    break;
+            }
+
+            // Add to used slots the non-mandatory moves from the learnset table that the pokemon have learned
+            return mandatory.Count + moves.Count(m => m != 0 && mandatory.All(l => l != m) && learn[1].Any(t => t == m));
+        }
+        private static List<int> GetRequiredMoveCountLevel(PKM pk)
+        {
+            int species = pk.Species;
+            int basespecies = GetBaseSpecies(pk);
+            int maxlevel = 1;
+            int minlevel = 1;
+
+            if (species == 114) // Tangela moves before level 32 are different in RB vs Y
+            {
                 minlevel = 32;
                 maxlevel = pk.CurrentLevel;
             }
-            var mandatory = minlevel <= pk.CurrentLevel ? GetLvlMoves(basespecies, 0, 1, minlevel, maxlevel).Where(m => m != 0).Distinct().ToList() : new List<int>();
-            if (pk.Species == 103 && pk.CurrentLevel >= 28) // Exeggutor
+            else if (029 <= species && species <= 034 && pk.CurrentLevel >= 8)
             {
-                // At level 28 learn different move if is a Exeggute or Exeggutor
-                if (moves.Contains(73))
-                    mandatory.Add(73); // Leech Seed level 28 Exeggute
-                if (moves.Contains(23))
-                    mandatory.Add(23); // Stomp level 28 Exeggutor
+                maxlevel = 8; // Always learns a third move at level 8
             }
-            if (pk.Species == 25 && pk.CurrentLevel >= 33)
-                mandatory.Add(97); // Pikachu always learn Agility
-            if (pk.Species == 114)
-                mandatory.Add(132); // Tangela always learn Constrict as Initial Move
 
-            // Add to used slots the non-mandatory moves from the learnset table that the pokemon have learned
-            return mandatory.Count + moves.Where(m => m != 0 && mandatory.All(l => l != m) && learn[1].Any(t => t == m)).Count();
+            return minlevel <= pk.CurrentLevel
+                ? GetLvlMoves(basespecies, 0, 1, minlevel, maxlevel).Where(m => m != 0).Distinct().ToList()
+                : new List<int>();
         }
 
         internal static bool GetWasEgg23(PKM pkm)
@@ -825,7 +858,7 @@ namespace PKHeX.Core
             if (lvl < 5)
                 return false;
 
-            if (pkm.Format > 3 && pkm.Met_Level <5)
+            if (pkm.Format > 3 && pkm.Met_Level < 5)
                 return false;
             if (pkm.Format > 3 && pkm.FatefulEncounter)
                 return false;
@@ -834,7 +867,7 @@ namespace PKHeX.Core
         }
 
         // Generation Specific Fetching
-        internal static EncounterStatic[] GetEncounterStaticTable(PKM pkm, GameVersion gameSource = GameVersion.Any)
+        internal static IEnumerable<EncounterStatic> GetEncounterStaticTable(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion)pkm.Version;
@@ -852,14 +885,7 @@ namespace PKHeX.Core
                 case GameVersion.GD:
                 case GameVersion.SV:
                 case GameVersion.C:
-                    if (!AllowGen2Crystal)
-                        return StaticGS;
-                    if (pkm.Format != 2)
-                        return StaticGSC;
-
-                    if (pkm.HasOriginalMetLocation)
-                        return StaticC;
-                    return StaticGSC;
+                    return GetEncounterStaticTableGSC(pkm);
 
                 case GameVersion.R: return StaticR;
                 case GameVersion.S: return StaticS;
@@ -886,11 +912,13 @@ namespace PKHeX.Core
 
                 case GameVersion.SN: return StaticSN;
                 case GameVersion.MN: return StaticMN;
+                case GameVersion.US: return StaticUS;
+                case GameVersion.UM: return StaticUM;
 
                 default: return new EncounterStatic[0];
             }
         }
-        internal static EncounterArea[] GetEncounterTable(PKM pkm, GameVersion gameSource = GameVersion.Any)
+        internal static IEnumerable<EncounterArea> GetEncounterTable(PKM pkm, GameVersion gameSource = GameVersion.Any)
         {
             if (gameSource == GameVersion.Any)
                 gameSource = (GameVersion)pkm.Version;
@@ -908,25 +936,7 @@ namespace PKHeX.Core
                 case GameVersion.GD:
                 case GameVersion.SV:
                 case GameVersion.C:
-                    if (!AllowGen2Crystal)
-                        return SlotsGS;
-
-                    if (pkm.Format != 2)
-                        // Gen 2 met location is lost outside gen 2 games
-                        return SlotsGSC;
-
-                    if (pkm.HasOriginalMetLocation)
-                        // Format 2 with met location, encounter should be from Crystal
-                        return SlotsC;
-
-                    if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
-                        // Format 2 without met location but pokemon could not be tradeback to gen 1, 
-                        // encounter should be from gold or silver
-                        return SlotsGS;
-
-                    // Encounter could be any gen 2 game, it can have empty met location for have a g/s origin
-                    // or it can be a Crystal pokemon that lost met location after being tradeback to gen 1 games
-                    return SlotsGSC;
+                    return GetEncounterTableGSC(pkm);
 
                 case GameVersion.R: return SlotsR;
                 case GameVersion.S: return SlotsS;
@@ -953,9 +963,44 @@ namespace PKHeX.Core
 
                 case GameVersion.SN: return SlotsSN;
                 case GameVersion.MN: return SlotsMN;
+                case GameVersion.US: return SlotsUS;
+                case GameVersion.UM: return SlotsUM;
 
                 default: return new EncounterArea[0];
             }
+        }
+        private static IEnumerable<EncounterStatic> GetEncounterStaticTableGSC(PKM pkm)
+        {
+            if (!AllowGen2Crystal)
+                return StaticGS;
+            if (pkm.Format != 2)
+                return StaticGSC;
+
+            if (pkm.HasOriginalMetLocation)
+                return StaticC;
+            return StaticGSC;
+        }
+        private static IEnumerable<EncounterArea> GetEncounterTableGSC(PKM pkm)
+        {
+            if (!AllowGen2Crystal)
+                return SlotsGS;
+
+            if (pkm.Format != 2)
+                // Gen 2 met location is lost outside gen 2 games
+                return SlotsGSC;
+
+            if (pkm.HasOriginalMetLocation)
+                // Format 2 with met location, encounter should be from Crystal
+                return SlotsC;
+
+            if (pkm.Species > 151 && !FutureEvolutionsGen1.Contains(pkm.Species))
+                // Format 2 without met location but pokemon could not be tradeback to gen 1, 
+                // encounter should be from gold or silver
+                return SlotsGS;
+
+            // Encounter could be any gen 2 game, it can have empty met location for have a g/s origin
+            // or it can be a Crystal pokemon that lost met location after being tradeback to gen 1 games
+            return SlotsGSC;
         }
         internal static IEnumerable<EncounterArea> GetDexNavAreas(PKM pkm)
         {
@@ -976,7 +1021,7 @@ namespace PKHeX.Core
                 return new[] {pkm.Species};
 
             var table = EvolutionTree.GetEvolutionTree(pkm.Format);
-            var lineage = table.GetValidPreEvolutions(pkm, pkm.CurrentLevel);
+            var lineage = table.GetValidPreEvolutions(pkm, maxLevel: pkm.CurrentLevel);
             return lineage.Select(evolution => evolution.Species);
         }
         internal static int[] GetWildBalls(PKM pkm)
@@ -1106,7 +1151,7 @@ namespace PKHeX.Core
                 return false;
 
             var table = EvolutionTree.GetEvolutionTree(pkm.Format);
-            var lineage = table.GetValidPreEvolutions(pkm, 100, skipChecks:true);
+            var lineage = table.GetValidPreEvolutions(pkm, maxLevel: 100, skipChecks:true);
             return lineage.Any(evolution => EvolutionMethod.TradeMethods.Any(method => method == evolution.Flag)); // Trade Evolutions
         }
         internal static bool IsEvolutionValid(PKM pkm, int minSpecies = -1)
@@ -1190,18 +1235,21 @@ namespace PKHeX.Core
             return false;
         }
         
-        public static int GetLowestLevel(PKM pkm, int refSpecies = -1)
+        public static int GetLowestLevel(PKM pkm, int startLevel)
         {
-            if (refSpecies == -1)
-                refSpecies = GetBaseSpecies(pkm);
-            for (int i = 0; i < 100; i++)
+            if (startLevel == -1)
+                startLevel = 100;
+
+            var table = EvolutionTree.GetEvolutionTree(pkm.Format);
+            int count = 1;
+            for (int i = 100; i >= startLevel; i--)
             {
-                var table = EvolutionTree.GetEvolutionTree(pkm.Format);
-                var evos = table.GetValidPreEvolutions(pkm, i, skipChecks:true).ToArray();
-                if (evos.Any(evo => evo.Species == refSpecies))
-                    return evos.OrderByDescending(evo => evo.Level).First().Level;
+                var evos = table.GetValidPreEvolutions(pkm, maxLevel: i, minLevel: startLevel, skipChecks:true).ToArray();
+                if (evos.Length < count) // lost an evolution, prior level was minimum current level
+                    return evos.Max(evo => evo.Level) + 1;
+                count = evos.Length;
             }
-            return 100;
+            return startLevel;
         }
         internal static bool GetCanBeCaptured(int species, int gen, GameVersion version = GameVersion.Any)
         {
@@ -1274,7 +1322,7 @@ namespace PKHeX.Core
             int tree = generation != -1 ? generation : pkm.Format;
             var table = EvolutionTree.GetEvolutionTree(tree);
             int maxSpeciesOrigin = generation != -1 ? GetMaxSpeciesOrigin(generation) : - 1;
-            var evos = table.GetValidPreEvolutions(pkm, 100, maxSpeciesOrigin: maxSpeciesOrigin, skipChecks:true).ToArray();
+            var evos = table.GetValidPreEvolutions(pkm, maxLevel: 100, maxSpeciesOrigin: maxSpeciesOrigin, skipChecks:true).ToArray();
 
             switch (skipOption)
             {
@@ -1509,6 +1557,8 @@ namespace PKHeX.Core
 
                 case (int)GameVersion.SN: case (int)GameVersion.MN:
                     return getMoves(LevelUpSM, PersonalTable.SM);
+                case (int)GameVersion.US: case (int)GameVersion.UM:
+                    return getMoves(LevelUpUSUM, PersonalTable.USUM);
             }
             return new int[0];
 
@@ -1534,7 +1584,7 @@ namespace PKHeX.Core
 
             int tree = maxspeciesorigin == MaxSpeciesID_2 ? 2 : pkm.Format;
             var et = EvolutionTree.GetEvolutionTree(tree);
-            return et.GetValidPreEvolutions(pkm, lvl: lvl, maxSpeciesOrigin: maxspeciesorigin, skipChecks: skipChecks);
+            return et.GetValidPreEvolutions(pkm, maxLevel: lvl, maxSpeciesOrigin: maxspeciesorigin, skipChecks: skipChecks);
         }
         private static IEnumerable<int> GetValidMoves(PKM pkm, GameVersion Version, IReadOnlyList<DexLevel[]> vs, int minLvLG1 = 1, int minLvLG2 = 1, bool LVL = false, bool Relearn = false, bool Tutor = false, bool Machine = false, bool MoveReminder = true, bool RemoveTransferHM = true)
         {
@@ -1840,6 +1890,25 @@ namespace PKHeX.Core
                                 PersonalInfo pi = PersonalTable.SM.GetFormeEntry(species, form);
                                 r.AddRange(TMHM_SM.Where((t, m) => pi.TMHM[m]));
                             }
+                            if (ver == GameVersion.Any) // Fall Through
+                                goto case GameVersion.USUM;
+                            break;
+                        }
+                        case GameVersion.US: case GameVersion.UM: case GameVersion.USUM:
+                        {
+                            int index = PersonalTable.USUM.GetFormeIndex(species, form);
+                            if (MoveReminder)
+                                lvl = 100; // Move reminder can teach any level in movepool now!
+
+                            if (LVL)
+                                r.AddRange(LevelUpUSUM[index].GetMoves(lvl));
+                            if (moveTutor)
+                                r.AddRange(GetTutorMoves(pkm, species, form, specialTutors, Generation));
+                            if (Machine)
+                            {
+                                PersonalInfo pi = PersonalTable.USUM.GetFormeEntry(species, form);
+                                r.AddRange(TMHM_SM.Where((t, m) => pi.TMHM[m]));
+                            }
                             break;
                         }
                     }
@@ -1890,9 +1959,21 @@ namespace PKHeX.Core
                     }
 
                 case 7: // entries per form if required
-                    var entry = EggMovesSM[species];
+                    EggMoves[] table;
+                    switch (pkm.Version)
+                    {
+                        case (int)GameVersion.US:
+                        case (int)GameVersion.UM:
+                            table = EggMovesUSUM;
+                            break;
+                        default:
+                            table = EggMovesSM;
+                            break;
+                    }
+
+                    var entry = table[species];
                     if (formnum > 0 && AlolanOriginForms.Contains(species))
-                        entry = EggMovesSM[entry.FormTableIndex + formnum - 1];
+                        entry = table[entry.FormTableIndex + formnum - 1];
                     return entry.Moves;
 
                 default:
@@ -2006,11 +2087,11 @@ namespace PKHeX.Core
                     }
                     break;
                 case 7:
-                    index = PersonalTable.SM.GetFormeIndex(species, form);
+                    index = PersonalTable.USUM.GetFormeIndex(species, form);
                     if (index == 0)
                         return moves;
 
-                    PersonalInfo pi_sm = PersonalTable.SM[index];
+                    PersonalInfo pi_sm = PersonalTable.USUM[index];
                     moves.AddRange(TMHM_SM.Where((t, m) => pi_sm.TMHM[m]));
                     break;
             }
@@ -2046,7 +2127,7 @@ namespace PKHeX.Core
 
                     break;
                 case 4:
-                    info = PersonalTable.HGSS[species];
+                    info = PersonalTable.HGSS.GetFormeEntry(species, form);
                     moves.AddRange(Tutors_4.Where((t, i) => info.TypeTutors[i]));
                     moves.AddRange(SpecialTutors_4.Where((t, i) => SpecialTutors_Compatibility_4[i].Any(e => e == species)));
                     break;
@@ -2075,7 +2156,7 @@ namespace PKHeX.Core
                     }
                     break;
                 case 7:
-                    info = PersonalTable.SM.GetFormeEntry(species, form);
+                    info = PersonalTable.USUM.GetFormeEntry(species, form);
                     moves.AddRange(TypeTutor6.Where((t, i) => info.TypeTutors[i]));
                     // No special tutors in G7
                     break;

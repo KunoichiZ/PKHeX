@@ -168,14 +168,9 @@ namespace PKHeX.Core
                 return;
             }
 
-            if (pkm.VC)
+            if (pkm.VC && pkm.IsNicknamed)
             {
-                string pk = pkm.Nickname;
-                var langset = PKX.SpeciesLang.FirstOrDefault(s => s.Contains(pk)) ?? PKX.SpeciesLang[2];
-                int lang = Array.IndexOf(PKX.SpeciesLang, langset);
-
-                if (pk.Length > (lang != 1 ? 10 : 5))
-                    AddLine(Severity.Invalid, V1, CheckIdentifier.Nickname);
+                VerifyG1NicknameWithinBounds(pkm.Nickname);
             }
             else if (EncounterMatch is MysteryGift m)
             {
@@ -186,14 +181,10 @@ namespace PKHeX.Core
             if (!Encounter.Valid)
                 return;
 
-            if (pkm.Format <= 6 && pkm.Language > 8)
+            int maxLanguageID = Legal.GetMaxLanguageID(Info.Generation);
+            if (pkm.Language == 6 || pkm.Language > maxLanguageID)
             {
-                AddLine(Severity.Indeterminate, V4, CheckIdentifier.Language);
-                return;
-            }
-            if (pkm.Format <= 7 && pkm.Language > 10)
-            {
-                AddLine(Severity.Indeterminate, V5, CheckIdentifier.Language);
+                AddLine(Severity.Indeterminate, string.Format(V5, "<=" + maxLanguageID, pkm.Language), CheckIdentifier.Language);
                 return;
             }
 
@@ -326,7 +317,11 @@ namespace PKHeX.Core
                 return;
             }
             else if (3 <= Info.Generation && Info.Generation <= 5)
-            { 
+            {
+                // Trades for JPN games have language ID of 0, not 1.
+                if (pkm.BW && pkm.Format == 5 && pkm.Language == 1)
+                    AddLine(Severity.Invalid, string.Format(V5, 0, 1), CheckIdentifier.Language);
+
                 // Suppressing temporarily
                 return;
             }
@@ -485,29 +480,67 @@ namespace PKHeX.Core
         private void VerifyG1OT()
         {
             string tr = pkm.OT_Name;
-            string pk = pkm.Nickname;
-            var langset = PKX.SpeciesLang.FirstOrDefault(s => s.Contains(pk)) ?? PKX.SpeciesLang[2];
-            int lang = Array.IndexOf(PKX.SpeciesLang, langset);
 
-            if (tr.Length > (lang == 2 ? 7 : 5))
-                AddLine(Severity.Invalid, V38, CheckIdentifier.Trainer);
+            VerifyG1OTWithinBounds(tr);
+            if ((EncounterMatch as EncounterStatic)?.Version == GameVersion.Stadium)
+                VerifyG1OTStadium(tr);
+
             if (pkm.Species == 151)
             {
                 if (tr != "GF" && tr != "ゲーフリ") // if there are more events with special OTs, may be worth refactoring
                     AddLine(Severity.Invalid, V39, CheckIdentifier.Trainer);
             }
-            if ((EncounterMatch as EncounterStatic)?.Version == GameVersion.Stadium)
-            {
-                bool jp = (pkm as PK1)?.Japanese ?? (pkm as PK2)?.Japanese ?? pkm.Language != 2;
-                bool valid = GetIsStadiumOTIDValid(jp, tr);
-                if (!valid)
-                    AddLine(Severity.Invalid, V402, CheckIdentifier.Trainer);
-                else
-                    AddLine(Severity.Valid, jp ? V404 : V403, CheckIdentifier.Trainer);
-            }
 
             if (pkm.OT_Gender == 1 && (pkm.Format == 2 && pkm.Met_Location == 0 || !Info.Game.Contains(GameVersion.C)))
                 AddLine(Severity.Invalid, V408, CheckIdentifier.Trainer);
+        }
+        private void VerifyG1OTWithinBounds(string str)
+        {
+            if (StringConverter.GetIsG1English(str))
+            {
+                if (str.Length > 7)
+                    AddLine(Severity.Invalid, V38, CheckIdentifier.Trainer);
+            }
+            else if (StringConverter.GetIsG1Japanese(str))
+            {
+                if (str.Length > 5)
+                    AddLine(Severity.Invalid, V38, CheckIdentifier.Trainer);
+            }
+            else if (pkm is PK2 pk2 && pk2.Korean)
+            {
+                if (str.Length > 5)
+                    AddLine(Severity.Invalid, V38, CheckIdentifier.Trainer);
+            }
+            else
+            {
+                AddLine(Severity.Invalid, V421, CheckIdentifier.Trainer);
+            }
+        }
+        private void VerifyG1NicknameWithinBounds(string str)
+        {
+            if (StringConverter.GetIsG1English(str))
+            {
+                if (str.Length > 10)
+                    AddLine(Severity.Invalid, V1, CheckIdentifier.Trainer);
+            }
+            else if (StringConverter.GetIsG1Japanese(str))
+            {
+                if (str.Length > 5)
+                    AddLine(Severity.Invalid, V1, CheckIdentifier.Trainer);
+            }
+            else
+            {
+                AddLine(Severity.Invalid, V422, CheckIdentifier.Trainer);
+            }
+        }
+        private void VerifyG1OTStadium(string tr)
+        {
+            bool jp = (pkm as PK1)?.Japanese ?? (pkm as PK2)?.Japanese ?? pkm.Language != 2;
+            bool valid = GetIsStadiumOTIDValid(jp, tr);
+            if (!valid)
+                AddLine(Severity.Invalid, V402, CheckIdentifier.Trainer);
+            else
+                AddLine(Severity.Valid, jp ? V404 : V403, CheckIdentifier.Trainer);
         }
         private bool GetIsStadiumOTIDValid(bool jp, string tr)
         {
@@ -815,7 +848,7 @@ namespace PKHeX.Core
             var SIDf = pidiv.RNG.Reverse(seed, rev);
             var TIDf = pidiv.RNG.Prev(SIDf);
             if (SIDf >> 16 != pkm.SID || TIDf >> 16 != pkm.TID)
-                AddLine(Severity.Invalid, V400, CheckIdentifier.PID);
+                AddLine(Severity.Invalid, V400 + $" {TIDf>>16}/{SIDf>>16}", CheckIdentifier.PID);
         }
 
         private void VerifyAbility()
@@ -951,6 +984,8 @@ namespace PKHeX.Core
 
                 case EncounterEgg e when pkm.AbilityNumber == 4:
                     // Hidden Abilities for some are unbreedable (male only distribution)
+                    if (Legal.MixedGenderBreeding.Contains(e.Species))
+                        break; // from female
                     if ((pkm.PersonalInfo.Gender & 0xFF) == 0 || Legal.Ban_BreedHidden.Contains(e.Species))
                         AddLine(Severity.Invalid, V112, CheckIdentifier.Ability);
                     break;
@@ -1918,6 +1953,16 @@ namespace PKHeX.Core
                 if (pkm.PKRS_Cured || pkm.PKRS_Infected)
                     AddLine(Severity.Invalid, V368, CheckIdentifier.Egg);
             }
+
+            if (pkm.Format > 2)
+            {
+                // Female Shinies for a 12.5%-F species are not possible with the 'correct' correlation
+                // Original Transporter code generated a random nature (VC1 only), so we can ignore in this case
+                bool checkShiny = pkm.VC2 || pkm.TradebackStatus == TradebackType.WasTradeback && pkm.VC1;
+                if (checkShiny && pkm.Gender == 1 && pkm.PersonalInfo.Gender == 31 && pkm.IsShiny)
+                    AddLine(Severity.Invalid, V209, CheckIdentifier.PID);
+            }
+
             if (!(pkm is PK1 pk1))
                 return;
 

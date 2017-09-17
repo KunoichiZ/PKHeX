@@ -10,6 +10,7 @@ namespace PKHeX.Core
     {
         public const int BEEF = 0x42454546;
 
+        public const int SIZE_G7USUM = -1;
         public const int SIZE_G7SM = 0x6BE00;
         public const int SIZE_G6XY = 0x65600;
         public const int SIZE_G6ORAS = 0x76000;
@@ -30,9 +31,10 @@ namespace PKHeX.Core
         public const int SIZE_G2RAW_U = 0x8000;
         public const int SIZE_G2VC = 0x8010;
         public const int SIZE_G2BAT_U = 0x802C;
-        public const int SIZE_G2EMU = 0x8030;
+        public const int SIZE_G2EMU_U = 0x8030;
         public const int SIZE_G2RAW_J = 0x10000;
         public const int SIZE_G2BAT_J = 0x1002C;
+        public const int SIZE_G2EMU_J = 0x10030;
         public const int SIZE_G1RAW = 0x8000;
         public const int SIZE_G1BAT = 0x802C;
         private static readonly HashSet<int> SIZES = new HashSet<int>
@@ -42,14 +44,14 @@ namespace PKHeX.Core
             SIZE_G5RAW, SIZE_G5BW, SIZE_G5B2W2,
             SIZE_G4BR, SIZE_G4RAW,
             SIZE_G3BOX, SIZE_G3BOXGCI, SIZE_G3COLO, SIZE_G3COLOGCI, SIZE_G3XD, SIZE_G3XDGCI, SIZE_G3RAW, SIZE_G3RAWHALF,
-            SIZE_G2RAW_U, SIZE_G2VC, SIZE_G2BAT_U, SIZE_G2EMU, SIZE_G2RAW_J, SIZE_G2BAT_J,
+            SIZE_G2RAW_U, SIZE_G2VC, SIZE_G2BAT_U, SIZE_G2EMU_U, SIZE_G2RAW_J, SIZE_G2BAT_J, SIZE_G2EMU_J,
             SIZE_G1RAW, SIZE_G1BAT
         };
 
-        public static readonly byte[] FOOTER_DSV = Encoding.ASCII.GetBytes("|-DESMUME SAVE-|");
-        public static readonly string[] HEADER_COLO =   { "GC6J","GC6E","GC6P" }; // NTSC-J, NTSC-U, PAL
-        public static readonly string[] HEADER_XD =     { "GXXJ","GXXE","GXXP" }; // NTSC-J, NTSC-U, PAL
-        public static readonly string[] HEADER_RSBOX =  { "GPXJ","GPXE","GPXP" }; // NTSC-J, NTSC-U, PAL
+        private static readonly byte[] FOOTER_DSV = Encoding.ASCII.GetBytes("|-DESMUME SAVE-|");
+        internal static readonly string[] HEADER_COLO =   { "GC6J","GC6E","GC6P" }; // NTSC-J, NTSC-U, PAL
+        internal static readonly string[] HEADER_XD =     { "GXXJ","GXXE","GXXP" }; // NTSC-J, NTSC-U, PAL
+        internal static readonly string[] HEADER_RSBOX =  { "GPXJ","GPXE","GPXP" }; // NTSC-J, NTSC-U, PAL
 
         /// <summary>Determines the generation of the given save data.</summary>
         /// <param name="data">Save data of which to determine the generation</param>
@@ -128,14 +130,17 @@ namespace PKHeX.Core
         /// <returns>Version Identifier or Invalid if type cannot be determined.</returns>
         internal static GameVersion GetIsG2SAV(byte[] data)
         {
-            if (!new[] {SIZE_G2RAW_J, SIZE_G2RAW_U, SIZE_G2BAT_J, SIZE_G2BAT_U, SIZE_G2EMU, SIZE_G2VC}.Contains(data.Length))
+            if (!new[] {SIZE_G2RAW_J, SIZE_G2RAW_U, SIZE_G2BAT_J, SIZE_G2BAT_U, SIZE_G2EMU_U, SIZE_G2EMU_J, SIZE_G2VC}.Contains(data.Length))
                 return GameVersion.Invalid;
 
             // Check if it's not an american save or a japanese save
-            if (GetIsG2SAVU(data) != GameVersion.Invalid)
-                return GetIsG2SAVU(data);
-            if (GetIsG2SAVJ(data) != GameVersion.Invalid)
-                return GetIsG2SAVJ(data);
+            GameVersion result;
+            if ((result = GetIsG2SAVU(data)) != GameVersion.Invalid)
+                return result;
+            if ((result = GetIsG2SAVJ(data)) != GameVersion.Invalid)
+                return result;
+            if ((result = GetIsG2SAVK(data)) != GameVersion.Invalid)
+                return result;
             return GameVersion.Invalid;
         }
         /// <summary>Determines if 2nd gen save is non-japanese</summary>
@@ -187,6 +192,19 @@ namespace PKHeX.Core
             if (c)
                 return GameVersion.C;
             return GameVersion.Invalid;
+        }
+        /// <summary>Determines if 2nd gen save is Korean</summary>
+        /// <param name="data">Save data of which to determine the region</param>
+        /// <returns>True if a valid japanese save, False otherwise.</returns>
+        internal static GameVersion GetIsG2SAVK(byte[] data)
+        {
+            foreach (int ofs in new[] { 0x28CC, 0x2DAE })
+            {
+                byte num_entries = data[ofs];
+                if (num_entries > 20 || data[ofs + 1 + num_entries] != 0xFF)
+                    return GameVersion.Invalid;
+            }
+            return GameVersion.GS;
         }
         /// <summary>Determines the type of 3rd gen save</summary>
         /// <param name="data">Save data of which to determine the type</param>
@@ -545,11 +563,11 @@ namespace PKHeX.Core
         }
 
         /// <summary>
-        /// Retrieves the full path of the most recent file based on LastWriteTime.
+        /// Retrieves the full path of the most recent file based on <see cref="FileInfo.LastWriteTime"/>.
         /// </summary>
         /// <param name="folderPath">Folder to look within</param>
         /// <param name="deep">Search all subfolders</param>
-        /// <param name="result">If this function returns true, full path of all save files that match criteria. If this function returns false, the error message, or null if the directory could not be found</param>
+        /// <param name="result">If this function returns true, full path of all <see cref="SaveFile"/> that match criteria. If this function returns false, the error message, or null if the directory could not be found</param>
         /// <returns>Boolean indicating whether or not operation was successful.</returns>
         public static bool GetSavesFromFolder(string folderPath, bool deep, out IEnumerable<string> result)
         {
@@ -667,7 +685,7 @@ namespace PKHeX.Core
         }
         public static byte[] Resign7(byte[] sav7)
         {
-            return MemeCrypto.Resign(sav7, false);
+            return MemeCrypto.Resign(sav7);
         }
         /// <summary>Calculates the 32bit checksum over an input byte array. Used in GBA save files.</summary>
         /// <param name="data">Input byte array</param>

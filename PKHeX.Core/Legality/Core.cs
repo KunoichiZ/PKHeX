@@ -34,7 +34,7 @@ namespace PKHeX.Core
         /// <summary>Setting to specify if an analysis should permit data sourced from the physical cartridge era of GameBoy games.</summary>
         public static bool AllowGBCartEra { get; set; }
         public static bool AllowGen1Tradeback { get; set; }
-        public static bool AllowGen2VCTransfer => AllowGen1Tradeback;
+        public static bool AllowGen2VCTransfer => true;
         public static bool AllowGen2VCCrystal => false;
         public static bool AllowGen2Crystal => AllowGBCartEra || AllowGen2VCCrystal;
         public static bool AllowGen2MoveReminder => AllowGBCartEra;
@@ -1101,6 +1101,23 @@ namespace PKHeX.Core
             }
         }
 
+        internal static int GetMaxLanguageID(int generation)
+        {
+            switch (generation)
+            {
+                case 1:
+                case 2:
+                case 7:
+                    return 10; // VC -> Gen7
+                case 3:
+                    return 7; // 1-7 except 6
+                case 4:
+                case 5:
+                case 6:
+                    return 8;
+            }
+            return -1;
+        }
         private static bool[] GetReleasedHeldItems(int generation)
         {
             switch (generation)
@@ -1235,6 +1252,17 @@ namespace PKHeX.Core
             return false;
         }
         
+        internal static bool GetCanInheritMoves(PKM pkm, IEncounterable e)
+        {
+            if (FixedGenderFromBiGender.Contains(e.Species)) // Nincada -> Shedinja loses gender causing 'false', edge case
+                return true;
+            int ratio = pkm.PersonalInfo.Gender;
+            if (ratio > 0 && ratio < 255)
+                return true;
+            if (MixedGenderBreeding.Contains(e.Species))
+                return true;
+            return false;
+        }
         public static int GetLowestLevel(PKM pkm, int startLevel)
         {
             if (startLevel == -1)
@@ -1919,7 +1947,7 @@ namespace PKHeX.Core
 
         internal static int[] GetEggMoves(PKM pkm, int species, int formnum)
         {
-            if (!pkm.InhabitedGeneration(pkm.GenNumber, species) || pkm.PersonalInfo.Gender == 255 && !GenderlessFromGender.Contains(species))
+            if (!pkm.InhabitedGeneration(pkm.GenNumber, species) || pkm.PersonalInfo.Gender == 255 && !FixedGenderFromBiGender.Contains(species))
                 return new int[0];
 
             switch (pkm.GenNumber)

@@ -292,6 +292,7 @@ namespace PKHeX.Core
         public bool FRLG => Version == (int)GameVersion.FR || Version == (int)GameVersion.LG;
         public bool Pt => (int)GameVersion.Pt == Version;
         public bool HGSS => Version == (int)GameVersion.HG || Version == (int)GameVersion.SS;
+        public bool BW => Version == (int)GameVersion.B || Version == (int)GameVersion.W;
         public bool B2W2 => Version == (int)GameVersion.B2 || Version == (int)GameVersion.W2;
         public bool XY => Version == (int)GameVersion.X || Version == (int)GameVersion.Y;
         public bool AO => Version == (int)GameVersion.AS || Version == (int)GameVersion.OR;
@@ -777,23 +778,14 @@ namespace PKHeX.Core
         /// </remarks>
         public void SetShinyIVs()
         {
-            int[] and2 = { 2, 3, 6, 7, 10, 11, 14, 15 };
-            switch (Format)
-            {
-                default:
-                    return;
-                case 1:
-                    IV_ATK = 10; // an attempt was made
-                    IV_DEF = randIV();
-                    break;
-                case 2:
-                    IV_DEF = 10;
-                    IV_ATK = randIV();
-                    break;
-            }
+            if (Format > 2)
+                return;
+
+            int[] and2 = {2, 3, 6, 7, 10, 11, 14, 15};
+            IV_ATK = and2[Util.Rand32() & 7];
+            IV_DEF = 10;
             IV_SPE = 10;
             IV_SPA = 10;
-            int randIV() => and2[Util.Rand32() & 7];
         }
 
         /// <summary>

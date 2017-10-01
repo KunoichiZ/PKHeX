@@ -27,6 +27,8 @@ namespace PKHeX.Core
             else Version = SaveUtil.GetIsG1SAV(Data);
             if (Version == GameVersion.Invalid)
                 return;
+            if (Starter != 0)
+                Version = Yellow ? GameVersion.Y : GameVersion.RB;
 
             Box = Data.Length;
             Array.Resize(ref Data, Data.Length + SIZE_RESERVED);
@@ -101,7 +103,10 @@ namespace PKHeX.Core
             Array.Copy(rawDC, 1 + 2 * StringLength, TempDaycare, 2 + 1, PKX.SIZE_1STORED);
             PokemonList1 daycareList = new PokemonList1(TempDaycare, PokemonList1.CapacityType.Single, Japanese);
             daycareList.GetBytes().CopyTo(Data, GetPartyOffset(7));
-            Daycare = GetPartyOffset(7); 
+            Daycare = GetPartyOffset(7);
+
+            EventFlag = Japanese ? 0x29E9 : 0x29F3;
+            ObjectSpawnFlags = Japanese ? 0x2848 : 0x2852; // 2 bytes after Coin
 
             // Enable Pokedex editing
             PokeDex = 0;
@@ -109,6 +114,11 @@ namespace PKHeX.Core
             if (!Exportable)
                 ClearBoxes();
         }
+
+        // Event Flags
+        protected override int EventFlagMax => EventFlag > 0 ? 0xA00 : int.MinValue; // 320 * 8
+        protected override int EventConstMax => 0;
+        private readonly int ObjectSpawnFlags;
 
         private const int SIZE_RESERVED = 0x8000; // unpacked box data
 
@@ -244,6 +254,8 @@ namespace PKHeX.Core
             set { }
         }
 
+        public bool Yellow => Starter == 0x54; // Pikachu
+        public int Starter => Data[Japanese ? 0x29B9 : 0x29C3];
         public byte PikaFriendship
         {
             get => Data[Japanese ? 0x2712 : 0x271C];
@@ -481,6 +493,26 @@ namespace PKHeX.Core
             int ofs = bit >> 3;
             byte bitval = (byte)(1 << (bit & 7));
             return (Data[PokedexCaughtOffset + ofs] & bitval) != 0;
+        }
+
+        private const int SpawnFlagCount = 0xF0;
+        public bool[] EventSpawnFlags
+        {
+            get
+            {
+                // RB uses 0xE4 (0xE8) flags, Yellow uses 0xF0 flags. Just grab 0xF0
+                bool[] data = new bool[SpawnFlagCount];
+                for (int i = 0; i < data.Length; i++)
+                    data[i] = GetFlag(ObjectSpawnFlags + i >> 3, i & 7);
+                return data;
+            }
+            set
+            {
+                if (value?.Length != SpawnFlagCount)
+                    return;
+                for (int i = 0; i < value.Length; i++)
+                    SetFlag(ObjectSpawnFlags + i >> 3, i & 7, value[i]);
+            }
         }
 
         public override string GetString(int Offset, int Count) => StringConverter.GetString1(Data, Offset, Count, Japanese);

@@ -236,18 +236,18 @@ namespace PKHeX.WinForms.Controls
             // Refresh slots
             if (SAV.HasParty)
             {
-                PKM[] party = SAV.PartyData;
-                for (int i = 0; i < party.Length; i++)
+                var party = SAV.PartyData;
+                for (int i = 0; i < party.Count; i++)
                     SlotPictureBoxes[i + 30].Image = GetSprite(party[i], i + 30);
-                for (int i = party.Length; i < 6; i++)
+                for (int i = party.Count; i < 6; i++)
                     SlotPictureBoxes[i + 30].Image = null;
             }
             if (SAV.HasBattleBox)
             {
-                PKM[] battle = SAV.BattleBoxData;
-                for (int i = 0; i < battle.Length; i++)
+                var battle = SAV.BattleBoxData;
+                for (int i = 0; i < battle.Count; i++)
                     SlotPictureBoxes[i + 36].Image = GetSprite(battle[i], i + 36);
-                for (int i = battle.Length; i < 6; i++)
+                for (int i = battle.Count; i < 6; i++)
                     SlotPictureBoxes[i + 36].Image = null;
             }
         }
@@ -460,7 +460,7 @@ namespace PKHeX.WinForms.Controls
             string filterText = Util.GetOnlyHex(tb.Text);
             if (filterText.Length != tb.Text.Length)
             {
-                WinFormsUtil.Alert("Expected HEX (0-9, A-F).", "Received: " + Environment.NewLine + tb.Text);
+                WinFormsUtil.Alert("Expected HEX (0-9, A-F).", $"Received: {Environment.NewLine}{tb.Text}");
                 tb.Undo();
                 return;
             }
@@ -513,11 +513,15 @@ namespace PKHeX.WinForms.Controls
         private void B_OpenItemPouch_Click(object sender, EventArgs e) => new SAV_Inventory(SAV).ShowDialog();
         private void B_OpenBerryField_Click(object sender, EventArgs e) => new SAV_BerryFieldXY(SAV).ShowDialog();
         private void B_OpenPokeblocks_Click(object sender, EventArgs e) => new SAV_PokeBlockORAS(SAV).ShowDialog();
-        private void B_OpenEventFlags_Click(object sender, EventArgs e) => new SAV_EventFlags(SAV).ShowDialog();
         private void B_OpenSuperTraining_Click(object sender, EventArgs e) => new SAV_SuperTrain(SAV).ShowDialog();
         private void B_OpenSecretBase_Click(object sender, EventArgs e) => new SAV_SecretBase(SAV).ShowDialog();
         private void B_OpenZygardeCells_Click(object sender, EventArgs e) => new SAV_ZygardeCell(SAV).ShowDialog();
         private void B_LinkInfo_Click(object sender, EventArgs e) => new SAV_Link6(SAV).ShowDialog();
+        private void B_OpenEventFlags_Click(object sender, EventArgs e)
+        {
+            var form = SAV.Generation == 1 ? new SAV_EventReset1(SAV) as Form : new SAV_EventFlags(SAV);
+            form.ShowDialog();
+        }
         private void B_OpenBoxLayout_Click(object sender, EventArgs e)
         {
             new SAV_BoxLayout(SAV, Box.CurrentBox).ShowDialog();
@@ -615,6 +619,8 @@ namespace PKHeX.WinForms.Controls
         {
             switch (SAV.Generation)
             {
+                case 2:
+                    WinFormsUtil.Alert($"Reset Password: {((SAV2)SAV).ResetKey:00000}"); break;
                 case 3:
                     new SAV_RTC3(SAV).ShowDialog(); break;
             }
@@ -634,15 +640,14 @@ namespace PKHeX.WinForms.Controls
                 return;
             if (DialogResult.Yes != WinFormsUtil.Prompt(MessageBoxButtons.YesNo, "Export Passerby Info to Clipboard?"))
                 return;
-            string result = "PSS List" + Environment.NewLine;
+            var result = new List<string> {"PSS List"};
             string[] headers = { "PSS Data - Friends", "PSS Data - Acquaintances", "PSS Data - Passerby", };
             int offset = ((SAV6)SAV).PSS;
             for (int g = 0; g < 3; g++)
             {
-                result += Environment.NewLine
-                          + "----" + Environment.NewLine
-                          + headers[g] + Environment.NewLine
-                          + "----" + Environment.NewLine;
+                result.Add("----");
+                result.Add(headers[g]);
+                result.Add("----");
                 // uint count = BitConverter.ToUInt32(savefile, offset + 0x4E20);
                 int r_offset = offset;
 
@@ -650,7 +655,8 @@ namespace PKHeX.WinForms.Controls
                 {
                     ulong unkn = BitConverter.ToUInt64(SAV.Data, r_offset);
                     if (unkn == 0) break; // No data present here
-                    if (i > 0) result += Environment.NewLine + Environment.NewLine;
+                    if (i > 0)
+                        result.Add("");
 
                     string otname = Util.TrimFromZero(Encoding.Unicode.GetString(SAV.Data, r_offset + 8, 0x1A));
                     string message = Util.TrimFromZero(Encoding.Unicode.GetString(SAV.Data, r_offset + 0x22, 0x22));
@@ -671,19 +677,18 @@ namespace PKHeX.WinForms.Controls
                     catch { gamename = "UNKNOWN GAME"; }
 
                     var cr = GameInfo.GetCountryRegionText(country, region, GameInfo.CurrentLanguage);
-                    result +=
-                        "OT: " + otname + Environment.NewLine +
-                        "Message: " + message + Environment.NewLine +
-                        "Game: " + gamename + Environment.NewLine +
-                        "Country: " + cr.Item1 + Environment.NewLine +
-                        "Region: " + cr.Item2 + Environment.NewLine +
-                        "Favorite: " + GameInfo.Strings.specieslist[favpkm];
+                    result.Add($"OT: {otname}");
+                    result.Add($"Message: {message}");
+                    result.Add($"Game: {gamename}");
+                    result.Add($"Country: {cr.Item1}");
+                    result.Add($"Region: {cr.Item2}");
+                    result.Add($"Favorite: {GameInfo.Strings.specieslist[favpkm]}");
 
                     r_offset += 0xC8; // Advance to next entry
                 }
                 offset += 0x5000; // Advance to next block
             }
-            Clipboard.SetText(result);
+            Clipboard.SetText(string.Join(Environment.NewLine, result));
         }
         private void B_OUTHallofFame_Click(object sender, EventArgs e)
         {
@@ -764,7 +769,7 @@ namespace PKHeX.WinForms.Controls
                 if (SAV.IsAnySlotLockedInBox(0, SAV.BoxCount - 1))
                 { c = "Battle Box slots prevent loading of PC data."; return false; }
                 if (!SAV.SetPCBinary(input))
-                { c = "Current SAV Generation: " + SAV.Generation; return false; }
+                { c = $"Current SAV Generation: {SAV.Generation}"; return false; }
 
                 c = "PC Binary loaded.";
             }
@@ -773,13 +778,13 @@ namespace PKHeX.WinForms.Controls
                 if (SAV.IsAnySlotLockedInBox(Box.CurrentBox, Box.CurrentBox))
                 { c = "Battle Box slots in box prevent loading of box data."; return false; }
                 if (!SAV.SetBoxBinary(input, Box.CurrentBox))
-                { c = "Current SAV Generation: " + SAV.Generation; return false; }
+                { c = $"Current SAV Generation: {SAV.Generation}"; return false; }
 
                 c = "Box Binary loaded.";
             }
             else
             {
-                c = "Current SAV Generation: " + SAV.Generation;
+                c = $"Current SAV Generation: {SAV.Generation}";
                 return false;
             }
             SetPKMBoxes();
@@ -891,6 +896,7 @@ namespace PKHeX.WinForms.Controls
             WindowTranslationRequired |= ToggleViewBox(SAV);
             WindowTranslationRequired |= ToggleViewParty(SAV, BoxTab);
             WindowTranslationRequired |= ToggleViewDaycare(SAV, BoxTab, PartyTab);
+            SetPKMBoxes();   // Reload all of the PKX Windows
 
             ToggleViewMisc(SAV);
 
@@ -923,7 +929,6 @@ namespace PKHeX.WinForms.Controls
             int startBox = !sav.Exportable ? 0 : sav.CurrentBox; // FF if BattleBox
             if (startBox > sav.BoxCount - 1) { tabBoxMulti.SelectedIndex = 1; Box.CurrentBox = 0; }
             else { tabBoxMulti.SelectedIndex = 0; Box.CurrentBox = startBox; }
-            SetPKMBoxes();   // Reload all of the PKX Windows
 
             if (tabBoxMulti.TabPages.Contains(Tab_Box))
                 return false;
@@ -1002,7 +1007,7 @@ namespace PKHeX.WinForms.Controls
                 B_OpenMiscEditor.Enabled = sav is SAV3 || sav is SAV4 || sav is SAV5;
 
                 B_OpenHoneyTreeEditor.Enabled = sav.DP || sav.Pt;
-                B_OpenRTCEditor.Enabled = sav.RS || sav.E;
+                B_OpenRTCEditor.Enabled = sav.RS || sav.E || sav.Generation == 2;
                 B_OpenUGSEditor.Enabled = sav.DP || sav.Pt;
             }
             GB_SAVtools.Visible = sav.Exportable && FLP_SAVtools.Controls.Cast<Control>().Any(c => c.Enabled);

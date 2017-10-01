@@ -839,7 +839,7 @@ namespace PKHeX.Core
         public override string GetBoxName(int box)
         {
             if (PCLayout < 0)
-                return "B" + (box + 1);
+                return $"B{box + 1}";
             return Util.TrimFromZero(Encoding.Unicode.GetString(Data, PCLayout + 0x22*box, 0x22));
         }
         public override void SetBoxName(int box, string val)
@@ -1301,8 +1301,6 @@ namespace PKHeX.Core
             set => Data[TrainerCard + 0x78] = (byte)((Data[TrainerCard + 0x78] & 0xFE) | (value ? 1 : 0)); // in battle
             // Data[0x1F22] = (byte)((Data[0x1F22] & 0xFE) | (value ? 1 : 0)); // event
         }
-
-        public override bool RequiresMemeCrypto => true;
 
         public override string GetString(int Offset, int Count) => StringConverter.GetString7(Data, Offset, Count);
         public override byte[] SetString(string value, int maxLength, int PadToSize = 0, ushort PadWith = 0)

@@ -102,7 +102,7 @@ namespace PKHeX.Core
             Y[64].CatchRate = 96; // Kadabra
 
             // Load Gen2 Gender Ratios into Gen1
-            for (int i = 0; i < 151; i++)
+            for (int i = 0; i <= Legal.MaxSpeciesID_1; i++)
                 RB[i].Gender = Y[i].Gender = GS[i].Gender;
         }
         private static void PopulateGen3Tutors()
@@ -177,7 +177,7 @@ namespace PKHeX.Core
                 if (FormCount <= 0) continue;
                 FormList[i][0] = species[i];
                 for (int j = 1; j < FormCount; j++)
-                    FormList[i][j] = $"{species[i]} " + j;
+                    FormList[i][j] = $"{species[i]} {j}";
             }
 
             return FormList;

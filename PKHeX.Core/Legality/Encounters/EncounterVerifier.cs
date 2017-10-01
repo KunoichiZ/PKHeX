@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using static PKHeX.Core.LegalityCheckStrings;
 
@@ -218,11 +219,13 @@ namespace PKHeX.Core
         {
             if (pkm.SM)
                 return VerifyEncounterEggLevelLoc(pkm, 1, Legal.ValidMet_SM);
+            if (pkm.USUM)
+                return VerifyEncounterEggLevelLoc(pkm, 1, Legal.ValidMet_USUM);
 
             // no other games
             return new CheckResult(Severity.Invalid, V51, CheckIdentifier.Encounter);
         }
-        private static CheckResult VerifyEncounterEggLevelLoc(PKM pkm, int eggLevel, int[] MetLocations)
+        private static CheckResult VerifyEncounterEggLevelLoc(PKM pkm, int eggLevel, ICollection<int> MetLocations)
         {
             if (pkm.Met_Level != eggLevel)
                 return new CheckResult(Severity.Invalid, string.Format(V52, eggLevel), CheckIdentifier.Encounter);
@@ -345,7 +348,7 @@ namespace PKHeX.Core
             {
                 case PCD pcd:
                     if (!pcd.CanBeReceivedBy(pkm.Version))
-                        return new CheckResult(Severity.Invalid, string.Format(V21, MatchedGift.CardHeader, "-- " + V416), CheckIdentifier.Encounter);
+                        return new CheckResult(Severity.Invalid, string.Format(V21, MatchedGift.CardHeader, $"-- {V416}"), CheckIdentifier.Encounter);
                     break;
             }
             // Strict matching already performed by EncounterGenerator. May be worth moving some checks here to better flag invalid gifts.

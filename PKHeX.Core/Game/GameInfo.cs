@@ -240,6 +240,7 @@ namespace PKHeX.Core
                 metSM_30000[0] += $" ({NPC})";      // Anything from an NPC
                 metSM_30000[1] += $" ({eggname})";  // Egg From Link Trade
                 for (int i = 2; i <= 5; i++) // distinguish first set of regions (unused) from second (used)
+                    if (i != 3) // except 30004, which is used for VC2
                     metSM_30000[i] += " (-)";
             }
 
@@ -309,7 +310,7 @@ namespace PKHeX.Core
         {
             int[] ball_nums = { 007, 576, 013, 492, 497, 014, 495, 493, 496, 494, 011, 498, 008, 006, 012, 015, 009, 005, 499, 010, 001, 016, 851 };
             int[] ball_vals = { 007, 025, 013, 017, 022, 014, 020, 018, 021, 019, 011, 023, 008, 006, 012, 015, 009, 005, 024, 010, 001, 016, 026 };
-            BallDataSource = Util.GetVariedCBList(s.itemlist, ball_nums, ball_vals);
+            BallDataSource = Util.GetVariedCBListBall(s.itemlist, ball_nums, ball_vals);
             SpeciesDataSource = Util.GetCBList(s.specieslist, null);
             NatureDataSource = Util.GetCBList(s.natures, null);
             AbilityDataSource = Util.GetCBList(s.abilitylist, null);
@@ -456,13 +457,21 @@ namespace PKHeX.Core
 
                 case GameVersion.SN:
                 case GameVersion.MN:
+                    return MetGen7.Take(3).Concat(MetGen7.Skip(3).OrderByDescending(loc => loc.Value < 200)).ToList(); // Outer Cape
+
+                case GameVersion.US:
+                case GameVersion.UM:
 
                 case GameVersion.GO:
                 case GameVersion.RD:
                 case GameVersion.BU:
                 case GameVersion.GN:
                 case GameVersion.YW:
-                    return MetGen7.Take(3).Concat(MetGen7.Skip(3).OrderByDescending(loc => loc.Value < 200)).ToList(); // Secret Base
+
+                case GameVersion.GD:
+                case GameVersion.SV:
+                case GameVersion.C:
+                    return MetGen7.Take(3).Concat(MetGen7.Skip(3).OrderByDescending(loc => loc.Value < 200)).ToList(); // Outer Cape
             }
 
             // Currently on a future game, return corresponding list for generation
@@ -541,7 +550,7 @@ namespace PKHeX.Core
             // Get Region Text
             try
             {
-                string[] inputCSV = Util.GetStringList("sr_" + country.ToString("000"));
+                string[] inputCSV = Util.GetStringList($"sr_{country:000}");
                 // Set up our Temporary Storage
                 string[] unsortedList = new string[inputCSV.Length - 1];
                 int[] indexes = new int[inputCSV.Length - 1];

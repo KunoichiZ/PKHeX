@@ -414,6 +414,9 @@ namespace PKHeX.Core
         public static string V607 { get; set; } = "Kanto Route 14 fishing encounter. Unreachable Water tiles.";
         public static string V608 { get; set; } = "National Park fishing encounter. Unreachable Water tiles.";
         public static string V609 { get; set; } = "Generation 2 Safari Zone fishing encounter. Unreachable zone.";
+        public static string V610 { get; set; } = "{0} origin cannot exist in the currently loaded ({1}) savegame."; // Invalid
+        public static string V611 { get; set; } = "Korean"; // Invalid
+        public static string V612 { get; set; } = "Non-Korean"; // Invalid
         #endregion
 
     }

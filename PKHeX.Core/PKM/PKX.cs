@@ -217,7 +217,11 @@ namespace PKHeX.Core
             string nick = GetSpeciesName(species, lang);
 
             if (generation < 5 && (generation != 4 || species != 0)) // All caps GenIV and previous, except GenIV eggs.
+            {
                 nick = nick.ToUpper();
+                if (lang == 3)
+                    nick = StringConverter.StripDiacriticsFR4(nick); // strips accents on E and I
+            }
             if (generation < 3)
                 nick = nick.Replace(" ", "");
             return nick;
@@ -232,16 +236,15 @@ namespace PKHeX.Core
         /// <returns>True if it does not match any language name, False if not nicknamed</returns>
         public static bool IsNicknamedAnyLanguage(int species, string nick, int generation)
         {
-            int len = SpeciesLang.Length;
+            IEnumerable<int> len;
             if (generation < 3)
-                len = 3;
+                len = new[] {1,2,8}; // check Korean for the VC case, never possible to match string outside of this case
             else if (generation < 7)
-                len = 9; // chinese (CHS/CHT) introduced in Gen7
+                len = Enumerable.Range(1, 9 - 1); // chinese (CHS/CHT) introduced in Gen7
+            else
+                len = Enumerable.Range(1, SpeciesLang.Length - 1);
 
-            for (int i = 0; i < len; i++)
-                if (GetSpeciesNameGeneration(species, i, generation) == nick)
-                    return false;
-            return true;
+            return len.All(lang => GetSpeciesNameGeneration(species, lang, generation) != nick);
         }
 
         /// <summary>
@@ -329,7 +332,7 @@ namespace PKHeX.Core
         /// </summary>
         /// <param name="s">Gender string</param>
         /// <returns>Gender integer</returns>
-        public static int GetGender(string s)
+        public static int GetGenderFromPID(string s)
         {
             if (s == null) 
                 return -1;
@@ -525,23 +528,23 @@ namespace PKHeX.Core
                     return pid; // PID can be anything
 
                 // Gen 3/4/5: Gender derived from PID
-                if (cg == GetGender(pid, gt))
+                if (cg == GetGenderFromPIDAndRatio(pid, gt))
                     return pid;
             }
         }
 
         // Data Requests
-        public static string GetResourceStringBall(int ball) => "_ball" + ball;
+        public static string GetResourceStringBall(int ball) => $"_ball{ball}";
         public static string GetResourceStringSprite(int species, int form, int gender, int generation)
         {
             if (new[] { 778, 664, 665, 414, 493, 773 }.Contains(species)) // Species who show their default sprite regardless of Form
                 form = 0;
 
-            string file = "_" + species;
+            string file = $"_{species}";
             if (form > 0) // Alt Form Handling
-                file += "_" + form;
+                file += $"_{form}";
             else if (gender == 1 && new[] { 592, 593, 521, 668 }.Contains(species)) // Frillish & Jellicent, Unfezant & Pyroar
-                file += "_" + gender;
+                file += $"_{gender}";
 
             if (species == 25 && form > 0 && generation >= 7) // Pikachu
                 file += "c"; // Cap
@@ -705,12 +708,12 @@ namespace PKHeX.Core
         /// <param name="PID">Personality ID.</param>
         /// <returns>Gender ID (0/1/2)</returns>
         /// <remarks>This method should only be used for Generations 3-5 origin.</remarks>
-        public static int GetGender(int species, uint PID)
+        public static int GetGenderFromPID(int species, uint PID)
         {
             int genderratio = Personal[species].Gender;
-            return GetGender(PID, genderratio);
+            return GetGenderFromPIDAndRatio(PID, genderratio);
         }
-        public static int GetGender(uint PID, int gr)
+        public static int GetGenderFromPIDAndRatio(uint PID, int gr)
         {
             switch (gr)
             {
@@ -785,18 +788,44 @@ namespace PKHeX.Core
         }
 
         /// <summary>
-        /// Gets the Main Series language ID from a GameCube (C/XD) language ID. Re-maps Spanish 6->7.
+        /// Gets the Main Series language ID from a GameCube (C/XD) language ID.
         /// </summary>
         /// <param name="value">GameCube (C/XD) language ID.</param>
         /// <returns>Main Series language ID.</returns>
-        public static byte GetMainLangIDfromGC(byte value) => value == 6 ? (byte)7 : value;
+        public static byte GetMainLangIDfromGC(byte value)
+        {
+            if (value <= 2 || value > 7)
+                return value;
+            return GCtoMainSeries[value];
+        }
+        private static readonly Dictionary<byte, byte> GCtoMainSeries = new Dictionary<byte, byte>
+        {
+            {3, 5}, // German
+            {4, 3}, // French
+            {5, 4}, // Italian
+            {6, 7}, // Spanish
+            {7, 6}, // Korean (Unused)
+        };
 
         /// <summary>
-        /// Gets the GameCube (C/XD) language ID from a Main Series language ID. Re-maps Spanish 7->6.
+        /// Gets the GameCube (C/XD) language ID from a Main Series language ID.
         /// </summary>
         /// <param name="value">Main Series language ID.</param>
         /// <returns>GameCube (C/XD) language ID.</returns>
-        public static byte GetGCLangIDfromMain(byte value) => value == 7 ? (byte)6 : value;
+        public static byte GetGCLangIDfromMain(byte value)
+        {
+            if (value <= 2 || value > 7)
+                return value;
+            return MainSeriesToGC[value];
+        }
+        private static readonly Dictionary<byte, byte> MainSeriesToGC = new Dictionary<byte, byte>
+        {
+            {5, 3}, // German
+            {3, 4}, // French
+            {4, 5}, // Italian
+            {7, 6}, // Spanish
+            {6, 7}, // Korean (Unused)
+        };
 
         /// <summary>
         /// Gets an array of valid <see cref="PKM"/> file extensions.
@@ -845,6 +874,53 @@ namespace PKHeX.Core
                 moves,
                 IVs + "   " + EVs,
             };
+        }
+
+        /// <summary>
+        /// Copies an <see cref="Enumerable"/> list to the destination list, with an option to copy to a starting point.
+        /// </summary>
+        /// <param name="list">Source list to copy from</param>
+        /// <param name="dest">Destination list/array</param>
+        /// <param name="start">Starting point to copy to</param>
+        public static void CopyTo(this IEnumerable<PKM> list, IList<PKM> dest, int start = 0)
+        {
+            int ctr = 0;
+            foreach (var z in list)
+                dest[start + ctr++] = z;
+        }
+
+        /// <summary>
+        /// Gets an <see cref="Enumerable"/> list of PKM data from a concatenated byte array binary.
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="len">Length of each PKM byte[]</param>
+        /// <returns>Enumerable list of PKM byte arrays</returns>
+        public static IEnumerable<byte[]> GetPKMDataFromConcatenatedBinary(byte[] data, int len)
+        {
+            // split up data to individual pkm
+            for (int i = 0; i < data.Length; ++i)
+            {
+                int offset = i * len;
+                var pk = new byte[len];
+                Buffer.BlockCopy(data, offset, pk, 0, len);
+                yield return pk;
+            }
+        }
+
+        /// <summary>
+        /// Sorts an <see cref="Enumerable"/> list of <see cref="PKM"/> objects according to common-usage.
+        /// </summary>
+        /// <param name="list">Source list to sort</param>
+        /// <returns>Enumerable list that is sorted</returns>
+        public static IEnumerable<PKM> SortPKMs(IEnumerable<PKM> list)
+        {
+            return list
+                .OrderBy(p => p.Species == 0) // empty slots at end
+                .ThenBy(p => p.IsEgg) // eggs to the end
+                .ThenBy(p => p.Species) // species sorted
+                .ThenBy(p => p.AltForm) // altforms sorted
+                .ThenBy(p => p.Gender) // gender sorted
+                .ThenBy(p => p.IsNicknamed);
         }
     }
 }

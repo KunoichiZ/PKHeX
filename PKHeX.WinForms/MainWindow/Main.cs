@@ -435,7 +435,7 @@ namespace PKHeX.WinForms
         }
         private void ClickShowdownExportParty(object sender, EventArgs e)
         {
-            if (C_SAV.SAV.PartyData.Length <= 0) return;
+            if (C_SAV.SAV.PartyData.Count <= 0) return;
             try
             {
                 Clipboard.SetText(
@@ -447,7 +447,7 @@ namespace PKHeX.WinForms
         }
         private void ClickShowdownExportBattleBox(object sender, EventArgs e)
         {
-            if (C_SAV.SAV.BattleBoxData.Length <= 0) return;
+            if (C_SAV.SAV.BattleBoxData.Count <= 0) return;
             try
             {
                 Clipboard.SetText(
@@ -575,7 +575,7 @@ namespace PKHeX.WinForms
         }
         private bool TryLoadPKM(byte[] input, string path, string ext, SaveFile SAV)
         {
-            var temp = PKMConverter.GetPKMfromBytes(input, prefer: ext.Length > 0 ? (ext.Last() - 0x30) & 7 : C_SAV.SAV.Generation);
+            var temp = PKMConverter.GetPKMfromBytes(input, prefer: ext.Length > 0 ? (ext.Last() - '0') & 0xF : C_SAV.SAV.Generation);
             if (temp == null)
                 return false;
 
@@ -651,13 +651,13 @@ namespace PKHeX.WinForms
         {
             // try to get a save file via xorpad in same folder
             var folder = new DirectoryInfo(path).Parent.FullName;
-            string[] pads = Directory.GetFiles(folder);
+            var pads = Directory.EnumerateFiles(folder);
             var s = SaveUtil.GetSAVfromXORpads(input, pads);
 
             if (s == null) // failed to find xorpad in path folder
             {
                 // try again
-                pads = Directory.GetFiles(WorkingDirectory);
+                pads = Directory.EnumerateFiles(WorkingDirectory);
                 s = SaveUtil.GetSAVfromXORpads(input, pads);
             }
 
@@ -710,6 +710,7 @@ namespace PKHeX.WinForms
 
         private static void StoreLegalSaveGameData(SaveFile sav)
         {
+            Legal.SavegameLanguage= sav.Language;
             Legal.SavegameJapanese = sav.Japanese;
             Legal.EReaderBerryIsEnigma = sav.IsEBerryIsEnigma;
             Legal.EReaderBerryName = sav.EBerryName;
@@ -725,7 +726,7 @@ namespace PKHeX.WinForms
                 return null;
 
             var blank = sav.BlankPKM;
-            string path = Path.Combine(TemplatePath, new DirectoryInfo(TemplatePath).Name + "." + blank.Extension);
+            string path = Path.Combine(TemplatePath, $"{new DirectoryInfo(TemplatePath).Name}.{blank.Extension}");
 
             if (!File.Exists(path) || !PKX.IsPKM(new FileInfo(path).Length))
                 return null;
@@ -743,7 +744,7 @@ namespace PKHeX.WinForms
             if (sav == null || sav.Version == GameVersion.Invalid)
             { WinFormsUtil.Error("Invalid save file loaded. Aborting.", path); return; }
 
-            if (!SanityCheckSAV(ref sav))
+            if (!SanityCheckSAV(ref sav, path))
                 return;
             StoreLegalSaveGameData(sav);
             PKMUtil.Initialize(sav); // refresh sprite generator
@@ -775,7 +776,7 @@ namespace PKHeX.WinForms
             C_SAV.SAV = sav;
 
             // Initialize Overall Info
-            Menu_LoadBoxes.Enabled = Menu_DumpBoxes.Enabled = Menu_Report.Enabled = Menu_Modify.Enabled = C_SAV.SAV.HasBox;
+            Menu_LoadBoxes.Enabled = Menu_DumpBoxes.Enabled = Menu_DumpBox.Enabled = Menu_Report.Enabled = Menu_Modify.Enabled = C_SAV.SAV.HasBox;
 
             // Initialize Subviews
             bool WindowTranslationRequired = false;
@@ -794,11 +795,11 @@ namespace PKHeX.WinForms
         {
 #if DEBUG
             var d = File.GetLastWriteTime(System.Reflection.Assembly.GetEntryAssembly().Location);
-            string date = "d-" + d.ToString("yyyyMMdd");
+            string date = $"d-{d:yyyyMMdd}";
 #else
             string date = Resources.ProgramVersion;
 #endif
-            string title = $"PKH{(HaX ? "a" : "e")}X ({date}) - " + $"{sav.GetType().Name}: ";
+            string title = $"PKH{(HaX ? "a" : "e")}X ({date}) - {sav.GetType().Name}: ";
             if (string.IsNullOrWhiteSpace(path)) // Blank save file
             {
                 sav.FilePath = null;
@@ -830,23 +831,18 @@ namespace PKHeX.WinForms
             if (!locked)
                 return true;
 
-            WinFormsUtil.Alert("File's location is write protected:\n" + path,
+            WinFormsUtil.Alert("File's location is write protected:" + Environment.NewLine + path,
                 "If the path is a removable disk (SD card), please ensure the write protection switch is not set.");
             return false;
         }
-        private static bool SanityCheckSAV(ref SaveFile sav)
+        private static bool SanityCheckSAV(ref SaveFile sav, string path)
         {
             // Finish setting up the save file.
-            if (sav.Generation == 1)
+            if (sav.Generation < 3)
             {
-                // Ask the user if it is a VC save file or if it is from a physical cartridge.
-                // Necessary for legality checking possibilities that are only obtainable on GSC (non VC) or event distributions.
-                var drVC = WinFormsUtil.Prompt(MessageBoxButtons.YesNoCancel,
-                    $"{sav.Version} Save File detected. Is this a Virtual Console Save File?",
-                    "Yes: Virtual Console" + Environment.NewLine + "No: Physical Cartridge");
-                if (drVC == DialogResult.Cancel)
-                    return false;
-                Legal.AllowGBCartEra = drVC == DialogResult.No; // physical cart selected
+                bool vc = path.EndsWith("dat");
+                Legal.AllowGBCartEra = !vc; // physical cart selected
+                Legal.AllowGen1Tradeback = true;
                 if (Legal.AllowGBCartEra && sav.Generation == 1)
                 {
                     var drTradeback = WinFormsUtil.Prompt(MessageBoxButtons.YesNoCancel,
@@ -857,11 +853,12 @@ namespace PKHeX.WinForms
                         return false;
                     Legal.AllowGen1Tradeback = drTradeback == DialogResult.Yes;
                 }
-                else
-                    Legal.AllowGen1Tradeback = false;
             }
             else
-                Legal.AllowGBCartEra = Legal.AllowGen1Tradeback = sav.Generation == 2;
+            {
+                Legal.AllowGBCartEra = false;
+                Legal.AllowGen1Tradeback = true;
+            }
 
             if (sav.Generation == 3 && (sav.IndeterminateGame || ModifierKeys == Keys.Control))
             {
@@ -1148,7 +1145,7 @@ namespace PKHeX.WinForms
             PKM pkx = PreparePKM();
             bool encrypt = ModifierKeys == Keys.Control;
             string fn = pkx.FileName; fn = fn.Substring(0, fn.LastIndexOf('.'));
-            string filename = $"{fn}{(encrypt ? ".ek" + pkx.Format : "." + pkx.Extension)}";
+            string filename = $"{fn}{(encrypt ? $".ek{pkx.Format}" : $".{pkx.Extension}")}";
             byte[] dragdata = encrypt ? pkx.EncryptedBoxData : pkx.DecryptedBoxData;
             // Make file
             string newfile = Path.Combine(Path.GetTempPath(), Util.CleanFileName(filename));

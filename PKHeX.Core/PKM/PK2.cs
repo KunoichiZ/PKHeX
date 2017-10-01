@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
@@ -20,7 +21,7 @@ namespace PKHeX.Core
         internal const int STRLEN_J = 6;
         internal const int STRLEN_U = 11;
         private int StringLength => Japanese ? STRLEN_J : STRLEN_U;
-        public bool Korean => otname[0] <= 0xB;
+        public override bool Korean => !Japanese && otname[0] <= 0xB;
 
         public override string GetString(int Offset, int Count)
         {
@@ -42,7 +43,7 @@ namespace PKHeX.Core
 
         public override int Format => 2;
 
-        public bool Japanese => otname.Length == STRLEN_J;
+        public override bool Japanese => otname.Length == STRLEN_J;
         public override string FileName
         {
             get
@@ -128,28 +129,27 @@ namespace PKHeX.Core
 
         public override bool IsNicknamed
         {
+            get => !nick.SequenceEqual(GetNonNickname());
+            set { if (!value) SetNotNicknamed(); }
+        }
+        public void SetNotNicknamed() => nick = GetNonNickname().ToArray();
+        private IEnumerable<byte> GetNonNickname()
+        {
+            var lang = Korean ? 8 : Japanese ? 1 : 2;
+            var name = PKX.GetSpeciesNameGeneration(Species, lang, Format);
+            var bytes = SetString(name, StringLength);
+            return bytes.Concat(Enumerable.Repeat((byte)0x50, nick.Length - bytes.Length))
+                .Select(b => (byte)(b == 0xF2 ? 0xE8 : b)); // Decimal point<->period fix
+        }
+        public bool IsNicknamedBank
+        {
             get
             {
-                string spName = PKX.GetSpeciesNameGeneration(Species, Japanese ? 1 : 2, Format);
-                return !nick.SequenceEqual(SetString(spName, StringLength)
-                            .Concat(Enumerable.Repeat((byte) 0x50, StringLength - spName.Length - 1))
-                            .Select(b => (byte)(b == 0xF2 ? 0xE8 : b)));
-            }
-            set 
-            {
-                if (!value)
-                    SetNotNicknamed();
+                var spName = PKX.GetSpeciesNameGeneration(Species, Japanese ? 1 : 2, Format);
+                return Nickname != spName;
             }
         }
-        public void SetNotNicknamed()
-        {
-            string spName = PKX.GetSpeciesNameGeneration(Species, Japanese ? 1 : 2, Format);
-            nick = SetString(spName, StringLength)
-                      .Concat(Enumerable.Repeat((byte)0x50, StringLength - spName.Length - 1))
-                      .Select(b => (byte)(b == 0xF2 ? 0xE8 : b)) // Decimal point<->period fix
-                      .ToArray();
-        }
-        
+
         #region Stored Attributes
         public override int Species
         {
@@ -289,7 +289,7 @@ namespace PKHeX.Core
                     case 191:
                         return IV_ATK >= 12 ? 0 : 1;
                 }
-                Debug.WriteLine("Unknown Gender value: " + gv);
+                Debug.WriteLine($"Unknown Gender value: {gv}");
                 return 0;
             }
             set { }
@@ -418,8 +418,8 @@ namespace PKHeX.Core
                 Move4_PP = Move4_PP,
                 Met_Location = 30004,
                 Gender = Gender,
-                OT_Name = StringConverter.GetG1ConvertedString(otname, Japanese),
                 IsNicknamed = false,
+                AltForm = AltForm,
 
                 Country = PKMConverter.Country,
                 Region = PKMConverter.Region,
@@ -459,11 +459,14 @@ namespace PKHeX.Core
 
             if (special)
                 pk7.FatefulEncounter = true;
-            else if (IsNicknamed)
+            else if (IsNicknamedBank)
             {
                 pk7.IsNicknamed = true;
-                pk7.Nickname = StringConverter.GetG1ConvertedString(nick, Japanese);
+                pk7.Nickname = Korean ? Nickname 
+                    : StringConverter.GetG1ConvertedString(nick, Japanese);
             }
+            pk7.OT_Name = Korean ? OT_Name
+                : StringConverter.GetG1ConvertedString(otname, Japanese);
 
             pk7.TradeMemory(Bank: true); // oh no, memories on gen7 pkm
 

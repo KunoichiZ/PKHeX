@@ -62,13 +62,13 @@ namespace PKHeX.WinForms
             int playeroff = SAV.SecretBase + 0x326;
             int favoff = SAV.SecretBase + 0x63A;
             string OT = Util.TrimFromZero(Encoding.Unicode.GetString(SAV.Data, playeroff + 0x218, 0x1A));
-            LB_Favorite.Items.Add("* " + OT);
+            LB_Favorite.Items.Add($"* {OT}");
             for (int i = 0; i < 30; i++)
             {
                 string BaseTrainer = Util.TrimFromZero(Encoding.Unicode.GetString(SAV.Data, favoff + i * 0x3E0 + 0x218, 0x1A));
                 if (BaseTrainer.Length < 1 || BaseTrainer[0] == '\0')
                     BaseTrainer = "Empty";
-                LB_Favorite.Items.Add(i + " " + BaseTrainer);
+                LB_Favorite.Items.Add($"{i} {BaseTrainer}");
             }
         }
         private void B_SAV2FAV(object sender, EventArgs e)
@@ -275,7 +275,7 @@ namespace PKHeX.WinForms
             pkm[0x14] = (byte)WinFormsUtil.GetIndex(CB_Nature);
 
             int fegform = 0;
-            fegform += PKX.GetGender(Label_Gender.Text) << 1;
+            fegform += PKX.GetGenderFromPID(Label_Gender.Text) << 1;
             fegform += CB_Form.SelectedIndex << 3;
             pkm[0x15] = (byte)fegform;
 
@@ -463,7 +463,7 @@ namespace PKHeX.WinForms
             SetAbilityList();
             
             // If form has a single gender, account for it.
-            if (PKX.GetGender(CB_Form.Text) < 2)
+            if (PKX.GetGenderFromPID(CB_Form.Text) < 2)
                 Label_Gender.Text = Main.GenderSymbols[CB_Form.SelectedIndex];
         }
 
@@ -477,7 +477,7 @@ namespace PKHeX.WinForms
                 return;
 
             if (gt < 256) // If not a single gender(less) species:
-                Label_Gender.Text = Main.GenderSymbols[PKX.GetGender(Label_Gender.Text) ^ 1];
+                Label_Gender.Text = Main.GenderSymbols[PKX.GetGenderFromPID(Label_Gender.Text) ^ 1];
         }
         private void SetGenderLabel()
         {

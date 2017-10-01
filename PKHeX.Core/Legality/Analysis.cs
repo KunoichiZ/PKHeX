@@ -212,28 +212,24 @@ namespace PKHeX.Core
         {
             if (pkm.Format == 1)
             {
-                Legal.GetTradebackStatusRBY(pkm);
+                Legal.SetTradebackStatusRBY(pkm);
                 return;
             }
 
             if (pkm.Format == 2 || pkm.VC2)
             {
-                // check for impossible tradeback scenarios
-                if (pkm.IsEgg || pkm.HasOriginalMetLocation || pkm.Species > Legal.MaxSpeciesID_1 && !Legal.FutureEvolutionsGen1.Contains(pkm.Species))
-                    pkm.TradebackStatus = TradebackType.Gen2_NotTradeback;
-                else
-                    pkm.TradebackStatus = TradebackType.Any;
+                // Check for impossible tradeback scenarios
+                // Korean Gen2 games can't tradeback because there are no Gen1 Korean games released
+                bool g2only = pkm.Korean || pkm.IsEgg || pkm.HasOriginalMetLocation ||
+                              pkm.Species > Legal.MaxSpeciesID_1 && !Legal.FutureEvolutionsGen1.Contains(pkm.Species);
+                pkm.TradebackStatus = g2only ? TradebackType.Gen2_NotTradeback : TradebackType.Any;
+                return;
             }
-            else if (pkm.VC1)
-            {
-                // If VC2 is ever released, we can assume it will be TradebackType.Any.
-                // Met date cannot be used definitively as the player can change their system clock.
-                pkm.TradebackStatus = TradebackType.Gen1_NotTradeback;
-            }
-            else
-            {
-                pkm.TradebackStatus = TradebackType.Any;
-            }
+
+            // VC2 is released, we can assume it will be TradebackType.Any.
+            // Is impossible to differentiate a VC1 pokemon traded to Gen7 after VC2 is available.
+            // Met Date cannot be used definitively as the player can change their system clock.
+            pkm.TradebackStatus = TradebackType.Any;
         }
         private void UpdateTypeInfo()
         {
@@ -371,7 +367,7 @@ namespace PKHeX.Core
             if (!pkm.WasEgg)
                 return Info.RelearnBase;
 
-            List<int> window = new List<int>(Info.RelearnBase);
+            List<int> window = new List<int>(Info.RelearnBase.Where(z => z != 0));
             window.AddRange(pkm.Moves.Where((v, i) => !Info.Moves[i].Valid || Info.Moves[i].Flag));
             window = window.Distinct().ToList();
             int[] moves = new int[4];

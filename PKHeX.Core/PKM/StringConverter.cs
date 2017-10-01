@@ -620,12 +620,12 @@ namespace PKHeX.Core
             {0x97, "X"},
             {0x98, "Y"},
             {0x99, "Z"},
-            {0x9A, "["},
-            {0x9B, "\\"},
-            {0x9C, "]"},
-            {0x9D, "^"},
-            {0x9E, "_"},
-            {0x9F, "`"},
+            {0x9A, "("},
+            {0x9B, ")"},
+            {0x9C, ":"},
+            {0x9D, ";"},
+            {0x9E, "["},
+            {0x9F, "]"},
             {0xA0, "a"},
             {0xA1, "b"},
             {0xA2, "c"},
@@ -652,6 +652,12 @@ namespace PKHeX.Core
             {0xB7, "x"},
             {0xB8, "y"},
             {0xB9, "z"},
+            {0xC0, "Ä"},
+            {0xC1, "Ö"},
+            {0xC2, "Ü"},
+            {0xC3, "ä"},
+            {0xC4, "ö"},
+            {0xC5, "ü"},
             {0xE0, "’"},
             {0xE1, "{"}, /* Pk */
             {0xE2, "}"}, /* Mn */
@@ -660,6 +666,7 @@ namespace PKHeX.Core
             {0xE7, "!"},
             {0xE8, "."}, // Alias decimal point to .
             {0xEF, "♂"},
+            {0xF1, "×"},
             {0xF2, "."},
             {0xF3, "/"},
             {0xF4, ","},
@@ -726,10 +733,11 @@ namespace PKHeX.Core
             {0x48, "ぽ"},
             {0x50, "\0"},
             {0x5D, "トレーナー"},
+            {0x7F, " "},
             {0x80, "ア"},
             {0x81, "イ"},
             {0x82, "ウ"},
-            {0x83, "ェ"},
+            {0x83, "エ"},
             {0x84, "オ"},
             {0x85, "カ"},
             {0x86, "キ"},
@@ -826,8 +834,13 @@ namespace PKHeX.Core
             {0xE1, "ゅ"},
             {0xE2, "ょ"},
             {0xE3, "ー"},
+            {0xE6, "?"},
+            {0xE7, "!"},
             {0xE9, "ァ"},
+            {0xEA, "ゥ"},
+            {0xEB, "ェ"},
             {0xEF, "♂"},
+            {0xF4, "ォ"},
             {0xF5, "♀"},
             {0xF6, "0"},
             {0xF7, "1"},
@@ -871,12 +884,12 @@ namespace PKHeX.Core
             {"X", 0x97},
             {"Y", 0x98},
             {"Z", 0x99},
-            {"[", 0x9A},
-            {"\\", 0x9B},
-            {"]", 0x9C},
-            {"^", 0x9D},
-            {"_", 0x9E},
-            {"`", 0x9F},
+            {"(", 0x9A},
+            {")", 0x9B},
+            {":", 0x9C},
+            {";", 0x9D},
+            {"[", 0x9E},
+            {"]", 0x9F},
             {"a", 0xA0},
             {"b", 0xA1},
             {"c", 0xA2},
@@ -903,6 +916,12 @@ namespace PKHeX.Core
             {"x", 0xB7},
             {"y", 0xB8},
             {"z", 0xB9},
+            {"Ä", 0xC0},
+            {"Ö", 0xC1},
+            {"Ü", 0xC2},
+            {"ä", 0xC3},
+            {"ö", 0xC4},
+            {"ü", 0xC5},
             {"'", 0xE0}, // Alias ' to ’ for Farfetch'd
             {"’", 0xE0},
             {"{", 0xE1}, /* Pk */
@@ -911,6 +930,7 @@ namespace PKHeX.Core
             {"?", 0xE6},
             {"!", 0xE7},
             {"♂", 0xEF},
+            {"×", 0xF1},
             {".", 0xF2},
             {"/", 0xF3},
             {",", 0xF4},
@@ -979,13 +999,12 @@ namespace PKHeX.Core
             {"ぽ", 0x48},
             {"\0", 0x50},
             {"トレーナー", 0x5D},
+            {" ", 0x7F},
             {"ア", 0x80},
             {"イ", 0x81},
             {"ウ", 0x82},
-            {"ェ", 0x83},
             {"エ", 0x83},
             {"オ", 0x84},
-            {"ォ", 0x84},
             {"カ", 0x85},
             {"キ", 0x86},
             {"ク", 0x87},
@@ -1082,8 +1101,13 @@ namespace PKHeX.Core
             {"ゅ", 0xE1},
             {"ょ", 0xE2},
             {"ー", 0xE3},
+            {"?", 0xE6},
+            {"!", 0xE7},
             {"ァ", 0xE9},
+            {"ゥ", 0xEA},
+            {"ェ", 0xEB},
             {"♂", 0xEF},
+            {"ォ", 0xF4},
             {"♀", 0xF5},
             {"0", 0xF6},
             {"1", 0xF7},
@@ -1930,7 +1954,9 @@ namespace PKHeX.Core
         /// <returns></returns>
         private static string UnSanitizeString(string str, int generation, int species = -1, bool nicknamed = true)
         {
-            var s = str.Replace("\u0027", "\u2019"); // farfetch'd
+            var s = str;
+            if (generation >= 6)
+                s = str.Replace("\u0027", "\u2019"); // farfetch'd
 
             if (generation == 5 || generation == 4)
             {
@@ -1941,7 +1967,7 @@ namespace PKHeX.Core
 
             bool foreign = true;
             if ((species == 029 || species == 032) && !nicknamed)
-                foreign = str[0] != 'N';
+                foreign = str[0] != 'N'; // idoran
             else if (nicknamed)
                 foreign = str.Select(c => c >> 12).Any(c => c != 0 && c != 0xE);
 
@@ -1963,5 +1989,26 @@ namespace PKHeX.Core
             int index = input.IndexOf((char)0xFFFF);
             return index < 0 ? input : input.Substring(0, index);
         }
+
+        /// <summary>
+        /// Strips diacritics on gen1-4 french pkm names
+        /// </summary>
+        /// <param name="input">String to clean</param>
+        /// <returns>Cleaned string</returns>
+        /// <remarks>Only 4 characters are accented in gen1-4</remarks>
+        public static string StripDiacriticsFR4(string input)
+        {
+            var result = new StringBuilder(input.Length);
+            foreach (var c in input)
+                result.Append(FrDiacritic.TryGetValue(c, out char o) ? o : c);
+            return result.ToString();
+        }
+        private static readonly Dictionary<char, char> FrDiacritic = new Dictionary<char, char>
+        {
+            { 'È', 'E' },
+            { 'É', 'E' },
+            { 'Ê', 'E' },
+            { 'Ï', 'I' },
+        };
     }
 }

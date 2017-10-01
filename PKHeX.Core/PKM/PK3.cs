@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 
 namespace PKHeX.Core
 {
@@ -37,7 +36,7 @@ namespace PKHeX.Core
         public override int AltForm { get => Species == 201 ? PKX.GetUnownForm(PID) : 0; set { } }
 
         public override bool IsNicknamed { get => PKX.IsNicknamedAnyLanguage(Species, Nickname, Format); set { } }
-        public override int Gender { get => PKX.GetGender(Species, PID); set { } }
+        public override int Gender { get => PKX.GetGenderFromPID(Species, PID); set { } }
         public override int Characteristic => -1;
         public override int CurrentFriendship { get => OT_Friendship; set => OT_Friendship = value; }
         public override int Ability { get { int[] abils = PersonalInfo.Abilities; return abils[AbilityBit && abils[1] != 0 ? 1 : 0]; } set { } }
@@ -156,7 +155,7 @@ namespace PKHeX.Core
         public override int AbilityNumber { get => 1 << (AbilityBit ? 1 : 0); set => AbilityBit = value > 1; } // 1/2 -> 0/1
         public override int PSV => (int)((PID >> 16 ^ PID & 0xFFFF) >> 3);
         public override int TSV => (TID ^ SID) >> 3;
-        public bool Japanese => IsEgg || Language == 1;
+        public override bool Japanese => IsEgg || Language == 1;
         public override bool WasEvent => Met_Location == 255; // Fateful
         public override bool WasIngameTrade => Met_Location == 254; // Trade
         public override bool WasGiftEgg => IsEgg && Met_Location == 253; // Gift Egg, indistinguible from normal eggs after hatch
@@ -275,12 +274,12 @@ namespace PKHeX.Core
             // Yay for reusing string buffers!
             StringConverter.G4TransferTrashBytes[pk4.Language].CopyTo(pk4.Data, 0x48 + 4);
             pk4.Nickname = IsEgg ? PKX.GetSpeciesNameGeneration(pk4.Species, pk4.Language, pk4.Format) : Nickname;
-            Array.Copy(pk4.Data, 0x48, pk4.Data, 0x68, 0x10);
+            Buffer.BlockCopy(pk4.Data, 0x48, pk4.Data, 0x68, 0x10);
             pk4.OT_Name = OT_Name;
             
             // Set Final Data
             pk4.Met_Level = PKX.GetLevel(pk4.Species, pk4.EXP);
-            pk4.Gender = PKX.GetGender(pk4.Species, pk4.PID);
+            pk4.Gender = PKX.GetGenderFromPID(pk4.Species, pk4.PID);
             pk4.IsNicknamed = IsNicknamed;
 
             // Unown Form

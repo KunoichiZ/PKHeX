@@ -142,6 +142,8 @@ namespace PKHeX.Core
         public abstract int Met_Location { get; set; }
         public abstract int Egg_Location { get; set; }
         public abstract int OT_Friendship { get; set; }
+        public virtual bool Japanese => Language == 1;
+        public virtual bool Korean => Language == 8;
 
         // Future Properties
         public virtual int Met_Year { get => 0; set { } }
@@ -285,6 +287,7 @@ namespace PKHeX.Core
         public virtual bool IsShiny => TSV == PSV;
         public virtual bool Locked { get => false; set { } }
         public int TrainerID7 => (int)((uint)(TID | (SID << 16)) % 1000000);
+        public int TrainerSID7 => (int)((uint)(TID | (SID << 16)) / 1000000);
         public bool VC2 => Version >= 39 && Version <= 41;
         public bool VC1 => Version >= 35 && Version <= 38;
         public bool Horohoro => Version == 34;
@@ -297,6 +300,7 @@ namespace PKHeX.Core
         public bool XY => Version == (int)GameVersion.X || Version == (int)GameVersion.Y;
         public bool AO => Version == (int)GameVersion.AS || Version == (int)GameVersion.OR;
         public bool SM => Version == (int)GameVersion.SN || Version == (int)GameVersion.MN;
+        public bool USUM => Version == (int)GameVersion.US || Version == (int)GameVersion.UM;
         protected bool PtHGSS => Pt || HGSS;
         public bool VC => VC1 || VC2;
         public bool Gen7 => Version >= 30 && Version <= 33;
@@ -617,7 +621,7 @@ namespace PKHeX.Core
             if (GenNumber >= 6)
                 return true;
 
-            return gender == PKX.GetGender(PID, gv);
+            return gender == PKX.GetGenderFromPIDAndRatio(PID, gv);
         }
 
         /// <summary>

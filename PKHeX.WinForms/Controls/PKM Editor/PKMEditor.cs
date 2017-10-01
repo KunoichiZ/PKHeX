@@ -284,12 +284,12 @@ namespace PKHeX.WinForms.Controls
                 TB_Nickname.Font = TB_OT.Font = TB_OTt2.Font = FontUtil.GetPKXFont(11);
             }
             // Switch active gender labels to new if they are active.
-            if (PKX.GetGender(Label_Gender.Text) < 2)
-                Label_Gender.Text = gendersymbols[PKX.GetGender(Label_Gender.Text)];
-            if (PKX.GetGender(Label_OTGender.Text) < 2)
-                Label_OTGender.Text = gendersymbols[PKX.GetGender(Label_OTGender.Text)];
-            if (PKX.GetGender(Label_CTGender.Text) < 2)
-                Label_CTGender.Text = gendersymbols[PKX.GetGender(Label_CTGender.Text)];
+            if (PKX.GetGenderFromPID(Label_Gender.Text) < 2)
+                Label_Gender.Text = gendersymbols[PKX.GetGenderFromPID(Label_Gender.Text)];
+            if (PKX.GetGenderFromPID(Label_OTGender.Text) < 2)
+                Label_OTGender.Text = gendersymbols[PKX.GetGenderFromPID(Label_OTGender.Text)];
+            if (PKX.GetGenderFromPID(Label_CTGender.Text) < 2)
+                Label_CTGender.Text = gendersymbols[PKX.GetGenderFromPID(Label_CTGender.Text)];
         }
         private void UpdateSprite()
         {
@@ -446,7 +446,7 @@ namespace PKHeX.WinForms.Controls
 
         private void UpdateGender()
         {
-            int cg = PKX.GetGender(Label_Gender.Text);
+            int cg = PKX.GetGenderFromPID(Label_Gender.Text);
             int gt = pkm.PersonalInfo.Gender;
 
             int Gender;
@@ -467,14 +467,16 @@ namespace PKHeX.WinForms.Controls
         private void UpdateStats()
         {
             // Generate the stats.
-            pkm.SetStats(pkm.GetStats(pkm.PersonalInfo));
-
-            Stat_HP.Text = pkm.Stat_HPCurrent.ToString();
-            Stat_ATK.Text = pkm.Stat_ATK.ToString();
-            Stat_DEF.Text = pkm.Stat_DEF.ToString();
-            Stat_SPA.Text = pkm.Stat_SPA.ToString();
-            Stat_SPD.Text = pkm.Stat_SPD.ToString();
-            Stat_SPE.Text = pkm.Stat_SPE.ToString();
+            if (!CHK_HackedStats.Checked || pkm.Stat_HPCurrent == 0) // no stats when initially loaded from non-partyformat slot
+            {
+                pkm.SetStats(pkm.GetStats(pkm.PersonalInfo));
+                Stat_HP.Text = pkm.Stat_HPCurrent.ToString();
+                Stat_ATK.Text = pkm.Stat_ATK.ToString();
+                Stat_DEF.Text = pkm.Stat_DEF.ToString();
+                Stat_SPA.Text = pkm.Stat_SPA.ToString();
+                Stat_SPD.Text = pkm.Stat_SPD.ToString();
+                Stat_SPE.Text = pkm.Stat_SPE.ToString();
+            }
 
             // Recolor the Stat Labels based on boosted stats.
             {
@@ -529,9 +531,13 @@ namespace PKHeX.WinForms.Controls
             if (gt >= 255) return;
             // If not a single gender(less) species: (should be <254 but whatever, 255 never happens)
 
-            int newGender = PKX.GetGender(Label_Gender.Text) ^ 1;
+            int newGender = PKX.GetGenderFromPID(Label_Gender.Text) ^ 1;
             if (pkm.Format <= 2)
-                do { TB_ATKIV.Text = (Util.Rand32() & pkm.MaxIV).ToString(); } while (PKX.GetGender(Label_Gender.Text) != newGender);
+            {
+                do { TB_ATKIV.Text = (pkm.IV_ATK = (int)(Util.Rand32() & pkm.MaxIV)).ToString(); }
+                while (PKX.GetGenderFromPID(Label_Gender.Text = gendersymbols[pkm.Gender]) != newGender);
+                SetIsShiny(null);
+            }
             else if (pkm.Format <= 4)
             {
                 if (fieldsLoaded)
@@ -547,8 +553,8 @@ namespace PKHeX.WinForms.Controls
             Label_Gender.Text = gendersymbols[pkm.Gender];
             Label_Gender.ForeColor = GetGenderColor(pkm.Gender);
 
-            if (PKX.GetGender(CB_Form.Text) < 2) // Gendered Forms
-                CB_Form.SelectedIndex = PKX.GetGender(Label_Gender.Text);
+            if (PKX.GetGenderFromPID(CB_Form.Text) < 2) // Gendered Forms
+                CB_Form.SelectedIndex = PKX.GetGenderFromPID(Label_Gender.Text);
 
             UpdatePreviewSprite(Label_Gender, null);
         }
@@ -638,7 +644,7 @@ namespace PKHeX.WinForms.Controls
             Label lbl = sender as Label;
             if (!string.IsNullOrWhiteSpace(lbl?.Text)) // set gender label (toggle M/F)
             {
-                int gender = PKX.GetGender(lbl.Text) ^ 1;
+                int gender = PKX.GetGenderFromPID(lbl.Text) ^ 1;
                 lbl.Text = gendersymbols[gender];
                 lbl.ForeColor = GetGenderColor(gender);
             }
@@ -894,10 +900,10 @@ namespace PKHeX.WinForms.Controls
             changingFields = false;
 
             // Potential Reading
-            L_Potential.Text = (Unicode
-                ? new[] { "★☆☆☆", "★★☆☆", "★★★☆", "★★★★" }
-                : new[] { "+", "++", "+++", "++++" }
-            )[pkm.PotentialRating];
+            var arr = Unicode 
+                ? new[] {"★☆☆☆", "★★☆☆", "★★★☆", "★★★★"} 
+                : new[] {"+", "++", "+++", "++++"};
+            L_Potential.Text = arr[pkm.PotentialRating];
 
             TB_IVTotal.Text = pkm.IVs.Sum().ToString();
 
@@ -1078,12 +1084,11 @@ namespace PKHeX.WinForms.Controls
         }
         private void UpdateHackedStats(object sender, EventArgs e)
         {
-            Stat_HP.Enabled =
-                Stat_ATK.Enabled =
-                    Stat_DEF.Enabled =
-                        Stat_SPA.Enabled =
-                            Stat_SPD.Enabled =
-                                Stat_SPE.Enabled = CHK_HackedStats.Checked;
+            var stats = new[] {Stat_HP, Stat_ATK, Stat_DEF, Stat_SPA, Stat_SPD, Stat_SPE};
+            foreach (var s in stats)
+                s.Enabled = CHK_HackedStats.Enabled;
+            if (!CHK_HackedStats.Checked)
+                UpdateStats();
         }
         private void UpdateHackedStatText(object sender, EventArgs e)
         {
@@ -1128,10 +1133,10 @@ namespace PKHeX.WinForms.Controls
                         UpdateRandomIVs(null, null);
                 }
             }
-            else if (PKX.GetGender(CB_Form.Text) < 2)
+            else if (PKX.GetGenderFromPID(CB_Form.Text) < 2)
             {
                 if (CB_Form.Items.Count == 2) // actually M/F; Pumpkaboo formes in German are S,M,L,XL
-                    Label_Gender.Text = gendersymbols[PKX.GetGender(CB_Form.Text)];
+                    Label_Gender.Text = gendersymbols[PKX.GetGenderFromPID(CB_Form.Text)];
             }
 
             if (changingFields)
@@ -1248,8 +1253,9 @@ namespace PKHeX.WinForms.Controls
         }
         private void UpdateCountry(object sender, EventArgs e)
         {
-            if (WinFormsUtil.GetIndex(sender as ComboBox) > 0)
-                SetCountrySubRegion(CB_SubRegion, "sr_" + WinFormsUtil.GetIndex(sender as ComboBox).ToString("000"));
+            int index;
+            if (sender is ComboBox c && (index = WinFormsUtil.GetIndex(c)) > 0)
+                SetCountrySubRegion(CB_SubRegion, $"sr_{index:000}");
         }
         private void UpdateSpecies(object sender, EventArgs e)
         {
@@ -1296,6 +1302,7 @@ namespace PKHeX.WinForms.Controls
                     {
                         case GameVersion.GO: metLoc = 30012; break;
                         case GameVersion.RBY: metLoc = 30013; break;
+                        case GameVersion.GSC: metLoc = 30004; break;
                     }
                     if (metLoc != 0)
                         CB_MetLocation.SelectedValue = metLoc;
@@ -1570,7 +1577,7 @@ namespace PKHeX.WinForms.Controls
             pkm.SID = Util.ToInt32(TB_SID.Text);
             pkm.PID = Util.GetHexValue(TB_PID.Text);
             pkm.Nature = WinFormsUtil.GetIndex(CB_Nature);
-            pkm.Gender = PKX.GetGender(Label_Gender.Text);
+            pkm.Gender = PKX.GetGenderFromPID(Label_Gender.Text);
             pkm.AltForm = CB_Form.SelectedIndex;
             pkm.Version = WinFormsUtil.GetIndex(CB_GameOrigin);
 
@@ -1598,7 +1605,7 @@ namespace PKHeX.WinForms.Controls
                 TB_DEFIV.Text = pkm.IV_DEF.ToString();
                 TB_SPEIV.Text = pkm.IV_SPE.ToString();
                 TB_SPAIV.Text = pkm.IV_SPA.ToString();
-                changingFields = true;
+                changingFields = false;
                 UpdateIVs(null, null);
             }
 
@@ -1613,7 +1620,7 @@ namespace PKHeX.WinForms.Controls
 
             string IDstr = $"TSV: {pkm.TSV:d4}";
             if (pkm.Format > 6)
-                IDstr += Environment.NewLine + $"G7TID: {pkm.TrainerID7:d6}";
+                IDstr += Environment.NewLine + $"G7TID: ({pkm.TrainerSID7:d4}){pkm.TrainerID7:d6}";
 
             Tip1.SetToolTip(TB_TID, IDstr);
             Tip2.SetToolTip(TB_SID, IDstr);
@@ -1978,7 +1985,7 @@ namespace PKHeX.WinForms.Controls
                 TB_Nickname.Text = Set.Nickname;
             if (Set.Gender != null)
             {
-                int Gender = PKX.GetGender(Set.Gender);
+                int Gender = PKX.GetGenderFromPID(Set.Gender);
                 Label_Gender.Text = gendersymbols[Gender];
                 Label_Gender.ForeColor = GetGenderColor(Gender);
             }

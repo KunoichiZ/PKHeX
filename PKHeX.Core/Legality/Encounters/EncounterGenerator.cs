@@ -5,8 +5,21 @@ using static PKHeX.Core.Legal;
 
 namespace PKHeX.Core
 {
+    /// <summary>
+    /// Generates matching <see cref="IEncounterable"/> data and relevant <see cref="LegalInfo"/> for a <see cref="PKM"/>.
+    /// Logic for generating possible in-game encounter data.
+    /// </summary>
     public static class EncounterGenerator
     {
+        /// <summary>
+        /// Generates possible <see cref="IEncounterable"/> data according to the input PKM data and legality info.
+        /// </summary>
+        /// <param name="pkm">PKM data</param>
+        /// <param name="info">Legality information</param>
+        /// <returns>Possible encounters</returns>
+        /// <remarks>
+        /// The iterator lazily finds possible encounters. If no encounters are possible, the enumerable will be empty.
+        /// </remarks>
         public static IEnumerable<IEncounterable> GetEncounters(PKM pkm, LegalInfo info)
         {
             switch (info.Generation)
@@ -149,7 +162,7 @@ namespace PKHeX.Core
                 if (WasEgg)
                 {
                     int eggspec = GetBaseEggSpecies(pkm);
-                    if (AllowGen2Crystal)
+                    if (AllowGen2Crystal(pkm))
                         yield return new GBEncounterData(eggspec, GameVersion.C); // gen2 egg
                     yield return new GBEncounterData(eggspec, GameVersion.GS); // gen2 egg
                 }
@@ -268,7 +281,7 @@ namespace PKHeX.Core
             // if (ctr != 0) yield break;
             foreach (var z in GetValidWildEncounters(pkm))
             { yield return z; ++ctr; }
-            if (ctr != 0 && pkm.HasOriginalMetLocation) yield break; // EncounterTrade abra/gengar will match wild slots
+            if (ctr != 0 && pkm.HasOriginalMetLocation && pkm.TID != 1000) yield break; // EncounterTrade abra/gengar will match wild slots
             foreach (var z in GetValidEncounterTrades(pkm))
             { yield return z; ++ctr; }
             if (ctr != 0) yield break;
@@ -318,16 +331,19 @@ namespace PKHeX.Core
         // EncounterStatic
         private static bool IsEncounterTypeMatch(IEncounterable e, int type)
         {
-            return type == 0 && !(e is EncounterStaticTyped)
-                   || e is EncounterStaticTyped t && t.TypeEncounter.Contains(type);
+            return e is EncounterStaticTyped t ? t.TypeEncounter.Contains(type) : type == 0;
         }
         private static bool IsValidCatchRatePK1(EncounterStatic e, PK1 pk1)
         {
             var catch_rate = pk1.Catch_Rate;
             // Pure gen 1, trades can be filter by catch rate
-            if ((pk1.Species == 25 || pk1.Species == 26) && catch_rate == 190)
-                // Red Blue Pikachu, is not a static encounter
-                return false;
+            if (pk1.Species == 25 || pk1.Species == 26)
+            {
+                if (catch_rate == 190) // Red Blue Pikachu, is not a static encounter
+                    return false;
+                if (catch_rate == 163 && e.Level == 5) // Light Ball (Yellow) starter
+                    return true;
+            }
 
             if (e.Version == GameVersion.Stadium)
             {
@@ -404,7 +420,7 @@ namespace PKHeX.Core
                     if (pkm.Format == 3 && pkm.IsEgg && e.EggLocation != pkm.Met_Location)
                         continue;
                 }
-                else if (pkm.VC || e.EggLocation != 0) // Gen2 Egg
+                else if (pkm.VC || pkm.GenNumber <= 2 && e.EggLocation != 0) // Gen2 Egg
                 {
                     if (pkm.Format <= 2)
                     {
@@ -563,7 +579,7 @@ namespace PKHeX.Core
                 yield break;
 
             IEnumerable<DexLevel> vs = GetValidPreEvolutions(pkm);
-            foreach (DexLevel d in vs.Where(d => FriendSafari.Contains(d.Species) && d.Level >= 30))
+            foreach (DexLevel d in vs.Where(d => d.Level >= 30 && FriendSafari.Contains(d.Species)))
             {
                 yield return new EncounterSlot
                 {
@@ -854,7 +870,7 @@ namespace PKHeX.Core
 
                 // Even if the in game trade uses the tables with source pokemon allowing generation 2 games, the traded pokemon could be a non-tradeback pokemon
                 var rate = (pkm as PK1)?.Catch_Rate;
-                if (z is EncounterTradeCatchRate r )
+                if (z is EncounterTradeCatchRate r)
                 {
                     if (rate != r.Catch_Rate)
                         continue;
@@ -912,8 +928,20 @@ namespace PKHeX.Core
                 if (z.IVs[i] != -1 && z.IVs[i] != pkm.IVs[i])
                     return false;
 
-            if (z.Shiny ^ pkm.IsShiny) // Are PIDs static?
-                return false;
+            if (z is EncounterTradePID p)
+            {
+                if (p.PID != pkm.EncryptionConstant)
+                    return false;
+            }
+            else
+            {
+                if (z.Shiny ^ pkm.IsShiny)
+                    return false;
+                if (z.Nature != Nature.Random && (int)z.Nature != pkm.Nature)
+                    return false;
+                if (z.Gender != -1 && z.Gender != pkm.Gender)
+                    return false;
+            }
             if (z.TID != pkm.TID)
                 return false;
             if (z.SID != pkm.SID)
@@ -934,11 +962,12 @@ namespace PKHeX.Core
             else if (z.Level > lvl)
                 return false;
 
-            if (z.Nature != Nature.Random && (int)z.Nature != pkm.Nature)
+            if (z.CurrentLevel != -1 && z.CurrentLevel > pkm.CurrentLevel)
                 return false;
-            if (z.Gender != -1 && z.Gender != pkm.Gender)
-                return false;
+
             if (z.OTGender != -1 && z.OTGender != pkm.OT_Gender)
+                return false;
+            if (z.Egg_Location != pkm.Egg_Location)
                 return false;
             // if (z.Ability == 4 ^ pkm.AbilityNumber == 4) // defer to Ability 
             //    countinue;
@@ -1049,7 +1078,9 @@ namespace PKHeX.Core
                 if (!GetIsMatchWC6(pkm, wc, vs))
                     continue;
 
-                if (wc.Species == pkm.Species) // best match
+                if (wc.CardID == 0525 && wc.IV_HP == 0xFE) // 3IV collision, yield the non 3IV first
+                    deferred.Add(wc);
+                else if (wc.Species == pkm.Species) // best match
                     yield return wc;
                 else
                     deferred.Add(wc);
@@ -1316,21 +1347,34 @@ namespace PKHeX.Core
         {
             if (NoHatchFromEgg.Contains(pkm.Species))
                 yield break;
-            
-            int lvl = pkm.GenNumber < 4 ? 5 : 1;
-            var ver = (GameVersion) pkm.Version; // version is a true indicator for all generation 3+ origins
-            int max = GetMaxSpeciesOrigin(pkm.GenNumber);
+
+            int gen = pkm.GenNumber;
+            // version is a true indicator for all generation 3-5 origins
+            var ver = (GameVersion) pkm.Version;
+            int max = GetMaxSpeciesOrigin(gen);
 
             var baseSpecies = GetBaseSpecies(pkm, 0);
+            int lvl = gen < 4 ? 5 : 1;
             if (baseSpecies <= max)
+            {
                 yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies };
+                if (gen > 5 && pkm.WasTradedEgg)
+                    yield return new EncounterEgg { Game = tradePair(), Level = lvl, Species = baseSpecies };
+            }
 
             if (!GetSplitBreedGeneration(pkm).Contains(pkm.Species))
                 yield break; // no other possible species
 
             baseSpecies = GetBaseSpecies(pkm, 1);
             if (baseSpecies <= max)
+            {
                 yield return new EncounterEgg { Game = ver, Level = lvl, Species = baseSpecies, SplitBreed = true };
+                if (gen > 5 && pkm.WasTradedEgg)
+                    yield return new EncounterEgg { Game = tradePair(), Level = lvl, Species = baseSpecies, SplitBreed = true };
+            }
+
+            // Gen6+ update the origin game when hatched. Quick manip for X.Y<->A.O | S.M<->US.UM, ie X->A
+            GameVersion tradePair() => (GameVersion) (((int) ver - 4 * gen) ^ 2 + 4 * gen);
         }
 
         // Utility

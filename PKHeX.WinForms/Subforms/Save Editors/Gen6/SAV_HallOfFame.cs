@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Text;
@@ -106,14 +107,14 @@ namespace PKHeX.WinForms
             uint vnd = BitConverter.ToUInt32(data, offset + 0x1B0);
             uint vn = vnd & 0xFF;
             TB_VN.Text = vn.ToString("000");
-            string s = "Entry #" + vn + Environment.NewLine;
+            var s = new List<string> {$"Entry #{vn}"};
             uint date = vnd >> 14 & 0x1FFFF;
             uint year = (date & 0xFF) + 2000;
             uint month = date >> 8 & 0xF;
             uint day = date >> 12;
             if (day == 0)
             {
-                s += "No records in this slot.";
+                s.Add("No records in this slot.");
                 foreach (Control t in editor_spec)
                     t.Enabled = false;
 
@@ -124,7 +125,8 @@ namespace PKHeX.WinForms
             foreach (Control t in editor_spec)
                 t.Enabled = true;
 
-            s += "Date: " + year + "/" + month + "/" + day + "" + Environment.NewLine + Environment.NewLine;
+            s.Add($"Date: {year}/{month:00}/{day:00}");
+            s.Add("");
             CAL_MetDate.Value = new DateTime((int)year, (int)month, (int)day);
             int moncount = 0;
             for (int i = 0; i < 6; i++)
@@ -157,17 +159,17 @@ namespace PKHeX.WinForms
                 string shinystr = shiny == 1 ? "Yes" : "No";
 
                 string[] movelist = GameInfo.Strings.movelist;
-                s += "Name: " + nickname;
-                s += " (" + GameInfo.Strings.specieslist[species] + " - " + genderstr + ")" + Environment.NewLine;
-                s += "Level: " + level + Environment.NewLine;
-                s += "Shiny: " + shinystr + Environment.NewLine;
-                s += "Held Item: " + GameInfo.Strings.itemlist[helditem] + Environment.NewLine;
-                s += "Move 1: " + movelist[move1] + Environment.NewLine;
-                s += "Move 2: " + movelist[move2] + Environment.NewLine;
-                s += "Move 3: " + movelist[move3] + Environment.NewLine;
-                s += "Move 4: " + movelist[move4] + Environment.NewLine;
-                s += "OT: " + OTname + " (" + TID + "/" + SID + ")" + Environment.NewLine;
-                s += Environment.NewLine;
+                s.Add($"Name: {nickname}");
+                s.Add($" ({GameInfo.Strings.specieslist[species]} - {genderstr})");
+                s.Add($"Level: {level}");
+                s.Add($"Shiny: {shinystr}");
+                s.Add($"Held Item: {GameInfo.Strings.itemlist[helditem]}");
+                s.Add($"Move 1: {movelist[move1]}");
+                s.Add($"Move 2: {movelist[move2]}");
+                s.Add($"Move 3: {movelist[move3]}");
+                s.Add($"Move 4: {movelist[move4]}");
+                s.Add($"OT: {OTname} ({TID}/{SID})");
+                s.Add("");
 
                 offset += 0x48;
             }
@@ -180,7 +182,7 @@ namespace PKHeX.WinForms
             }
             else editing = true;
         end:
-            RTB.Text = s;
+            RTB.Lines = s.ToArray();
             RTB.Font = new Font("Courier New", 8);
         }
         private void NUP_PartyIndex_ValueChanged(object sender, EventArgs e)
@@ -258,7 +260,7 @@ namespace PKHeX.WinForms
             uint rawslgf = BitConverter.ToUInt32(data, offset + 0x14);
             uint slgf = 0;
             slgf |= (uint)(CB_Form.SelectedIndex & 0x1F);
-            slgf |= (uint)((PKX.GetGender(Label_Gender.Text) & 0x3) << 5);
+            slgf |= (uint)((PKX.GetGenderFromPID(Label_Gender.Text) & 0x3) << 5);
             slgf |= (uint)((Convert.ToUInt16(TB_Level.Text) & 0x7F) << 7);
             if (CHK_Shiny.Checked)
                 slgf |= 1 << 14;
@@ -291,7 +293,7 @@ namespace PKHeX.WinForms
             vnd |= rawvnd & 0x80000000;
             Array.Copy(BitConverter.GetBytes(vnd), 0, data, offset + 0x1B0, 4);
 
-            bpkx.Image = PKMUtil.GetSprite(WinFormsUtil.GetIndex(CB_Species), CB_Form.SelectedIndex & 0x1F, PKX.GetGender(Label_Gender.Text), WinFormsUtil.GetIndex(CB_HeldItem), false, CHK_Shiny.Checked);
+            bpkx.Image = PKMUtil.GetSprite(WinFormsUtil.GetIndex(CB_Species), CB_Form.SelectedIndex & 0x1F, PKX.GetGenderFromPID(Label_Gender.Text), WinFormsUtil.GetIndex(CB_HeldItem), false, CHK_Shiny.Checked);
             DisplayEntry(null, null); // refresh text view
         }
         private void Validate_TextBoxes()
@@ -340,7 +342,7 @@ namespace PKHeX.WinForms
         {
             if (!editing)
                 return; //Don't do writing until loaded
-            bpkx.Image = PKMUtil.GetSprite(WinFormsUtil.GetIndex(CB_Species), CB_Form.SelectedIndex & 0x1F, PKX.GetGender(Label_Gender.Text), WinFormsUtil.GetIndex(CB_HeldItem), false, CHK_Shiny.Checked);
+            bpkx.Image = PKMUtil.GetSprite(WinFormsUtil.GetIndex(CB_Species), CB_Form.SelectedIndex & 0x1F, PKX.GetGenderFromPID(Label_Gender.Text), WinFormsUtil.GetIndex(CB_HeldItem), false, CHK_Shiny.Checked);
 
             Write_Entry(null, null);
         }
@@ -362,16 +364,16 @@ namespace PKHeX.WinForms
 
             if (gt < 256) // If not a single gender(less) species:
             {
-                Label_Gender.Text = PKX.GetGender(Label_Gender.Text) == 0 ? gendersymbols[1] : gendersymbols[0];
+                Label_Gender.Text = PKX.GetGenderFromPID(Label_Gender.Text) == 0 ? gendersymbols[1] : gendersymbols[0];
 
-                if (PKX.GetGender(CB_Form.Text) == 0 && Label_Gender.Text != gendersymbols[0])
+                if (PKX.GetGenderFromPID(CB_Form.Text) == 0 && Label_Gender.Text != gendersymbols[0])
                     CB_Form.SelectedIndex = 1;
-                else if (PKX.GetGender(CB_Form.Text) == 1 && Label_Gender.Text != gendersymbols[1])
+                else if (PKX.GetGenderFromPID(CB_Form.Text) == 1 && Label_Gender.Text != gendersymbols[1])
                     CB_Form.SelectedIndex = 0;
             }
 
             if (species == 668)
-                CB_Form.SelectedIndex = PKX.GetGender(Label_Gender.Text);
+                CB_Form.SelectedIndex = PKX.GetGenderFromPID(Label_Gender.Text);
 
             Write_Entry(null, null);
         }

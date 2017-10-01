@@ -22,7 +22,7 @@ namespace PKHeX.WinForms
         /// <returns></returns>
         public static bool DumpBoxes(this SaveFile SAV, string path, out string result, bool boxFolders = false)
         {
-            PKM[] boxdata = SAV.BoxData;
+            var boxdata = SAV.BoxData;
             if (boxdata == null)
             { result = "Invalid Box Data, unable to dump."; return false; }
 
@@ -44,7 +44,7 @@ namespace PKHeX.WinForms
                     File.WriteAllBytes(Path.Combine(Path.Combine(path, boxfolder), fileName), pk.DecryptedBoxData);
             }
 
-            result = $"Dumped Boxes ({ctr} pkm) to path:\n" + path;
+            result = $"Dumped Boxes ({ctr} pkm) to path:" + Environment.NewLine + path;
             return true;
         }
 
@@ -58,7 +58,7 @@ namespace PKHeX.WinForms
         /// <returns></returns>
         public static bool DumpBox(this SaveFile SAV, string path, out string result, int currentBox)
         {
-            PKM[] boxdata = SAV.BoxData;
+            var boxdata = SAV.BoxData;
             if (boxdata == null)
             { result = "Invalid Box Data, unable to dump."; return false; }
 
@@ -74,7 +74,7 @@ namespace PKHeX.WinForms
                     File.WriteAllBytes(Path.Combine(path, fileName), pk.DecryptedBoxData);
             }
 
-            result = $"Dumped Box ({ctr} pkm) to path:\n" + path;
+            result = $"Dumped Box ({ctr} pkm) to path:" + Environment.NewLine + path;
             return true;
         }
 
@@ -102,7 +102,7 @@ namespace PKHeX.WinForms
             int maxCount = SAV.BoxCount*SAV.BoxSlotCount;
             int ctr = startCount;
             int pastctr = 0;
-            string[] filepaths = Directory.GetFiles(path, "*.*", SearchOption.TopDirectoryOnly);
+            var filepaths = Directory.EnumerateFiles(path, "*.*", SearchOption.TopDirectoryOnly);
 
             foreach (var file in filepaths)
             {

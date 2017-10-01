@@ -153,6 +153,37 @@ namespace PKHeX.Core
             if (!valid)
                 AddLine(Severity.Invalid, xorPID ? V215 : V216, CheckIdentifier.EC);
         }
+        #region verifyLanguage
+        private bool VerifyLanguage()
+        {
+            int maxLanguageID = Legal.GetMaxLanguageID(Info.Generation);
+
+            // Language ID 6 is unused; flag if an impossible language is used
+            if (pkm.Language == 6 || pkm.Language > maxLanguageID)
+            {
+                AddLine(Severity.Invalid, string.Format(V5, $"<={maxLanguageID}", pkm.Language), CheckIdentifier.Language);
+                return false;
+            }
+
+            // Korean Gen4 games can not trade with other Gen4 languages, but can use Pal Park with any Gen3 game/language.
+            if (pkm.Format == 4 && pkm.Gen4 && pkm.Language == 8 != (Legal.SavegameLanguage == 8))
+            {
+                var currentpkm = pkm.Language == 8 ? V611 : V612;
+                var currentsav = pkm.Language == 8 ? V612 : V611;
+                AddLine(Severity.Invalid, string.Format(V610, currentpkm, currentsav), CheckIdentifier.Language);
+                return false;
+            }
+
+            // Korean Crystal does not exist
+            if (pkm.Version == (int)GameVersion.C && pkm.Korean)
+            {
+                AddLine(Severity.Invalid, string.Format(V5, $"!={pkm.Language}", pkm.Language), CheckIdentifier.Language);
+                return false;
+            }
+
+            return true;
+        }
+        #endregion
         #region verifyNickname
         private void VerifyNickname()
         {
@@ -181,12 +212,8 @@ namespace PKHeX.Core
             if (!Encounter.Valid)
                 return;
 
-            int maxLanguageID = Legal.GetMaxLanguageID(Info.Generation);
-            if (pkm.Language == 6 || pkm.Language > maxLanguageID)
-            {
-                AddLine(Severity.Indeterminate, string.Format(V5, "<=" + maxLanguageID, pkm.Language), CheckIdentifier.Language);
+            if (!VerifyLanguage())
                 return;
-            }
 
             if (Type == typeof(EncounterTrade))
             {
@@ -300,6 +327,32 @@ namespace PKHeX.Core
             {
                 // TODO
                 AddLine(Severity.Valid, V194, CheckIdentifier.Nickname);
+                return;
+            }
+            else if (pkm.USUM)
+            {
+                // TODO
+                AddLine(Severity.Valid, V194, CheckIdentifier.Nickname);
+                return;
+            }
+            else if (pkm.Gen4)
+            {
+                if (pkm.TID != 1000)
+                    return; // only care about Ranch atm
+
+                string[] OTs = { null, "ユカリ", "Hayley", "EULALIE", "GIULIA", "EUKALIA", "Eulalia" };
+                int lang = pkm.Language;
+                if (OTs.Length <= lang)
+                {
+                    AddLine(Severity.Valid, V8, CheckIdentifier.Trainer);
+                    return;
+                }
+                if (pkm.IsNicknamed)
+                    AddLine(Severity.Valid, V9, CheckIdentifier.Nickname);
+                else if (OTs[lang] != pkm.OT_Name)
+                    AddLine(Severity.Valid, V10, CheckIdentifier.Trainer);
+                else
+                    AddLine(Severity.Valid, V11, CheckIdentifier.Nickname);
                 return;
             }
             else if (pkm.Format <= 2 || pkm.VC)
@@ -984,7 +1037,7 @@ namespace PKHeX.Core
 
                 case EncounterEgg e when pkm.AbilityNumber == 4:
                     // Hidden Abilities for some are unbreedable (male only distribution)
-                    if (Legal.MixedGenderBreeding.Contains(e.Species))
+                    if (Legal.MixedGenderBreeding.Contains(e.Species) || Legal.FixedGenderFromBiGender.Contains(e.Species))
                         break; // from female
                     if ((pkm.PersonalInfo.Gender & 0xFF) == 0 || Legal.Ban_BreedHidden.Contains(e.Species))
                         AddLine(Severity.Invalid, V112, CheckIdentifier.Ability);
@@ -1032,10 +1085,11 @@ namespace PKHeX.Core
                 AddLine(Severity.Invalid, V110, CheckIdentifier.Ability);
         }
         #region VerifyBall
-        private void VerifyBallEquals(params int[] balls)
+        private void VerifyBallEquals(int ball) => AddBallLine(ball == pkm.Ball);
+        private void VerifyBallEquals(ICollection<int> balls) => AddBallLine(balls.Contains(pkm.Ball));
+        private void AddBallLine(bool valid)
         {
-            int ball = pkm.Ball;
-            if (balls.Any(b => b == ball))
+            if (valid)
                 AddLine(Severity.Valid, V119, CheckIdentifier.Ball);
             else
                 AddLine(Severity.Invalid, V118, CheckIdentifier.Ball);
@@ -1747,7 +1801,7 @@ namespace PKHeX.Core
                 case 5: // Korea
                     return country == 136;
                 case 6: // Taiwan
-                    return country == 128;
+                    return country == 144 || country == 128;
                 default:
                     return false;
             }
@@ -2056,9 +2110,22 @@ namespace PKHeX.Core
             if (Info.Generation == 5)
                 VerifyNsPKM();
 
+            VerifyMiscFatefulEncounter();
+        }
+        private void VerifyMiscFatefulEncounter()
+        {
             switch (EncounterMatch)
             {
                 case WC3 w when w.Fateful:
+                    if (w.IsEgg)
+                    {
+                        // Eggs hatched in RS clear the obedience flag!
+                        if (pkm.Format != 3)
+                            return; // possible hatched in either game, don't bother checking
+                        if (pkm.Met_Location <= 087) // hatched in RS
+                            break; // ensure fateful is not active
+                        // else, ensure fateful is active (via below)
+                    }
                     VerifyFatefulIngameActive();
                     return;
                 case MysteryGift g when g.Format != 3: // WC3
@@ -2066,13 +2133,12 @@ namespace PKHeX.Core
                     return;
                 case EncounterStatic s when s.Fateful: // ingame fateful
                 case EncounterSlot _ when pkm.Version == 15: // ingame pokespot
+                case EncounterTrade t when t.Fateful:
                     VerifyFatefulIngameActive();
                     return;
-                default:
-                    if (pkm.FatefulEncounter)
-                        AddLine(Severity.Invalid, V325, CheckIdentifier.Fateful);
-                    return;
             }
+            if (pkm.FatefulEncounter)
+                AddLine(Severity.Invalid, V325, CheckIdentifier.Fateful);
         }
         private void VerifyMiscEggCommon()
         {
@@ -2162,13 +2228,8 @@ namespace PKHeX.Core
             if (pkm.TID != 00002 || pkm.SID != 00000)
                 return false;
 
-            switch (pkm.Language)
-            {
-                case 1: // jp
-                    return pkm.OT_Name == "Ｎ";
-                default:
-                    return pkm.OT_Name == "N";
-            }
+            var OT = pkm.Language == 1 ? "Ｎ" : "N";
+            return OT == pkm.OT_Name;
         }
         private void VerifyVersionEvolution()
         {
@@ -2176,20 +2237,22 @@ namespace PKHeX.Core
                 return;
 
             // No point using the evolution tree. Just handle certain species.
+            bool Sun() => pkm.Version == (int)GameVersion.SN || pkm.Version == (int)GameVersion.US;
+            bool Moon() => pkm.Version == (int)GameVersion.MN || pkm.Version == (int)GameVersion.UM;
             switch (pkm.Species)
             {
                 case 745: // Lycanroc
                     if (!pkm.WasEgg)
                         break;
 
-                    if (pkm.AltForm == 0 && pkm.Version == 31 // Moon
-                        || pkm.AltForm == 1 && pkm.Version == 30) // Sun
+                    if (pkm.AltForm == 0 && Moon()
+                        || pkm.AltForm == 1 && Sun())
                         if (pkm.IsUntraded)
                             AddLine(Severity.Invalid, V328, CheckIdentifier.Evolution);
                     break;
 
                 case 791: // Solgaleo
-                    if (pkm.Version == 31 && pkm.IsUntraded)
+                    if (Moon() && pkm.IsUntraded)
                     {
                         if (EncounterMatch is MysteryGift g && g.Species == pkm.Species) // Gifted via Mystery Gift
                             break;
@@ -2197,7 +2260,7 @@ namespace PKHeX.Core
                     }
                     break;
                 case 792: // Lunala
-                    if (pkm.Version == 30 && pkm.IsUntraded)
+                    if (Sun() && pkm.IsUntraded)
                     {
                         if (EncounterMatch is MysteryGift g && g.Species == pkm.Species) // Gifted via Mystery Gift
                             break;
@@ -2206,8 +2269,6 @@ namespace PKHeX.Core
                     break;
             }
         }
-        #region VerifyMoves
-        #endregion
         public static string[] MoveStrings { internal get; set; } = Util.GetMovesList("en");
         public static string[] SpeciesStrings { internal get; set; } = Util.GetSpeciesList("en");
         internal static IEnumerable<string> getMoveNames(IEnumerable<int> moves) => moves.Select(m => m >= MoveStrings.Length ? V190 : MoveStrings[m]);

@@ -490,8 +490,8 @@ namespace PKHeX.WinForms
         }
         private void SaveBattleFrontier()
         {
-            if(ofsPrints > 0)
-                for(int i = 0; i < Prints.Length; i++)
+            if (ofsPrints > 0)
+                for (int i = 0; i < Prints.Length; i++)
                 {
                     if (Prints[i] == 1 + Math.Sign((BitConverter.ToUInt16(SAV.Data, ofsPrints + (i << 1)) >> 1) - 1)) continue;
                     BitConverter.GetBytes(Prints[i] << 1).CopyTo(SAV.Data, ofsPrints + (i << 1));
@@ -555,14 +555,14 @@ namespace PKHeX.WinForms
             StatAddrControl(SetValToSav: -2, SetSavToVal: true);
             if (GB_Hall.Visible)
             {
-                GB_Hall.Text = "Battle Hall (" + (string)CB_Stats2.SelectedItem + ")";
+                GB_Hall.Text = $"Battle Hall ({(string) CB_Stats2.SelectedItem})";
                 editing = true;
                 GetHallStat();
                 editing = false;
             }
             else if (GB_Castle.Visible)
             {
-                GB_Castle.Text = "Battle Castle (" + (string)CB_Stats2.SelectedItem + ")";
+                GB_Castle.Text = $"Battle Castle ({(string) CB_Stats2.SelectedItem})";
                 editing = true;
                 GetCastleStat();
                 editing = false;

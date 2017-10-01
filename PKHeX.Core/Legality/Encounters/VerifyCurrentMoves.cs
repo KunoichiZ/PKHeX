@@ -45,7 +45,7 @@ namespace PKHeX.Core
                 UptateGen1LevelUpMoves(pkm, info.EncounterMoves, info.EncounterMoves.MinimumLevelGen1, EncounterMatchGen.Generation, info);
 
                 // The same for Generation 2; if move reminder from Stadium 2 is not allowed
-                if (!Legal.AllowGen2MoveReminder && pkm.InhabitedGeneration(2))
+                if (!Legal.AllowGen2MoveReminder(pkm) && pkm.InhabitedGeneration(2))
                     UptateGen2LevelUpMoves(pkm, info.EncounterMoves, info.EncounterMoves.MinimumLevelGen2, EncounterMatchGen.Generation, info);
             }
 
@@ -135,7 +135,7 @@ namespace PKHeX.Core
                 int[] SpecialMoves = GetSpecialMoves(info.EncounterMatch);
                 return ParseMovesIsEggPreRelearn(pkm, Moves, SpecialMoves, egg);
             }
-            var NoMoveReminder = (info.EncounterMatch as IGeneration)?.Generation == 1 || (info.EncounterMatch as IGeneration)?.Generation == 2 && !Legal.AllowGen2MoveReminder;
+            var NoMoveReminder = (info.EncounterMatch as IGeneration)?.Generation == 1 || (info.EncounterMatch as IGeneration)?.Generation == 2 && !Legal.AllowGen2MoveReminder(pkm);
             if (info.Generation <= 2 && NoMoveReminder)
                 return ParseMovesGenGB(pkm, Moves, info);
             if (info.EncounterMatch is EncounterEgg e)
@@ -241,7 +241,7 @@ namespace PKHeX.Core
             if (pkm.Format <= 2)
                 generations = generations.Where(z => z < info.EncounterMoves.LevelUpMoves.Length).ToArray();
 
-            int lastgen = generations.Last();
+            int lastgen = generations.LastOrDefault();
             foreach (var gen in generations)
             {
                 ParseMovesByGeneration(pkm, res, gen, info, moveInfo, lastgen);
@@ -300,18 +300,21 @@ namespace PKHeX.Core
             {
                 if (IsCheckValid(res[m])) // already validated with another generation
                     continue;
-                if (moves[m] == 0)
+                int move = moves[m];
+                if (move == 0)
                     continue;
 
-                if (gen == 1 && learnInfo.Source.Base.Contains(moves[m]))
+                if (gen <= 2 && learnInfo.Source.Base.Contains(move))
                     res[m] = new CheckMoveResult(MoveSource.Initial, gen, Severity.Valid, native ? V361 : string.Format(V362, gen), CheckIdentifier.Move);
-                else if (info.EncounterMoves.LevelUpMoves[gen].Contains(moves[m]))
+                if (gen == 2 && !native && move > Legal.MaxMoveID_1 && pkm.VC1)
+                    res[m] = new CheckMoveResult(MoveSource.Unknown, gen, Severity.Invalid, V176, CheckIdentifier.Move);
+                else if (info.EncounterMoves.LevelUpMoves[gen].Contains(move))
                     res[m] = new CheckMoveResult(MoveSource.LevelUp, gen, Severity.Valid, native ? V177 : string.Format(V330, gen), CheckIdentifier.Move);
-                else if (info.EncounterMoves.TMHMMoves[gen].Contains(moves[m]))
+                else if (info.EncounterMoves.TMHMMoves[gen].Contains(move))
                     res[m] = new CheckMoveResult(MoveSource.TMHM, gen, Severity.Valid, native ? V173 : string.Format(V331, gen), CheckIdentifier.Move);
-                else if (info.EncounterMoves.TutorMoves[gen].Contains(moves[m]))
+                else if (info.EncounterMoves.TutorMoves[gen].Contains(move))
                     res[m] = new CheckMoveResult(MoveSource.Tutor, gen, Severity.Valid, native ? V174 : string.Format(V332, gen), CheckIdentifier.Move);
-                else if (gen == info.Generation && learnInfo.Source.SpecialSource.Contains(moves[m]))
+                else if (gen == info.Generation && learnInfo.Source.SpecialSource.Contains(move))
                     res[m] = new CheckMoveResult(MoveSource.Special, gen, Severity.Valid, V175, CheckIdentifier.Move);
 
                 if (res[m] == null || gen >= 3)
@@ -519,7 +522,7 @@ namespace PKHeX.Core
             if (134 <= pkm.Species && pkm.Species <= 136)
             {
                 previousspecies = species[133];
-                var ExclusiveMoves = Legal.GetExclusiveMoves(133, pkm.Species, 1, tmhm, moves);
+                var ExclusiveMoves = Legal.GetExclusiveMoves(133, pkm.Species, 1, tmhm, moves, pkm.Korean);
                 var EeveeLevels = Legal.GetMinLevelLearnMove(133, 1, ExclusiveMoves[0]);
                 var EvoLevels = Legal.GetMaxLevelLearnMove(pkm.Species, 1, ExclusiveMoves[1]);
 
@@ -629,7 +632,7 @@ namespace PKHeX.Core
             if (gen == 3 && pkm.Format > 3)
                 IsHMSource(ref HMLearned, Legal.HM_3);
 
-            void IsHMSource(ref bool[] flags, int[] source)
+            void IsHMSource(ref bool[] flags, ICollection<int> source)
             {
                 for (int i = 0; i < 4; i++)
                     flags[i] = IsCheckInvalid(res[i]) && source.Contains(moves[i]);
@@ -788,18 +791,34 @@ namespace PKHeX.Core
         }
         private static int[] GetGenMovesCheckOrder(PKM pkm)
         {
-            if (pkm.Format == 1)
-                return new[] { 1, 2 };
-            if (pkm.Format == 2)
-                return new[] { 2, 1 };
-            if (pkm.Format == 7 && pkm.VC1)
-                return new[] { 7, 1 };
-            if (pkm.Format == 7 && pkm.VC2)
-                return new[] { 7, 2, 1 };
+            if (pkm.Format < 3)
+                return GetGenMovesCheckOrderGB(pkm, pkm.Format);
+            if (pkm.VC)
+                return GetGenMovesOrderVC(pkm);
 
-            var order = new int[pkm.Format - pkm.GenNumber + 1];
+            return GetGenMovesOrder(pkm.Format, pkm.GenNumber);
+        }
+        private static int[] GetGenMovesOrderVC(PKM pkm)
+        {
+            // VC case: check transfer games in reverse order (8, 7..) then past games.
+            int[] xfer = GetGenMovesOrder(pkm.Format, pkm.GenNumber);
+            int[] past = GetGenMovesCheckOrderGB(pkm, pkm.GenNumber);
+            int end = xfer.Length;
+            Array.Resize(ref xfer, xfer.Length + past.Length);
+            past.CopyTo(xfer, end);
+            return xfer;
+        }
+        private static int[] GetGenMovesCheckOrderGB(PKM pkm, int originalGeneration)
+        {
+            if (originalGeneration == 2)
+                return pkm.Korean ? new[] {2} : new[] {2, 1};
+            return new[] {1, 2}; // RBY
+        }
+        private static int[] GetGenMovesOrder(int start, int end)
+        {
+            var order = new int[start - end + 1];
             for (int i = 0; i < order.Length; i++)
-                order[i] = pkm.Format - i;
+                order[i] = start - i;
             return order;
         }
     }
